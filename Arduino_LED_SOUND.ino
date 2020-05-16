@@ -107,7 +107,7 @@ uint16_t XY( int x, int y)
   //A Helper Function for calculating Pixel number based on XY co-ordinates for
   //the 8x8 LED Matrix display
   
-  return x*8 + y;
+  return x << 3 + y;
 }
 
 bool in_list(pos xy, pos list[], int numElements)
@@ -510,55 +510,39 @@ void anim_fireworks()
   previous_array[starting_pointX][starting_pointY] = true;  //Set first value to our first pixel location
 
 
+  int rows = 8;
+  int cols = 8;
+  bool next_array[rows][cols] = {0};                    //Initialize array TO STORE calculated values
+  int direction_array[4][2] = {{-1,0}, {1,0}, {0,-1}, {0,1}};
+
   //TEST AREA
   for(uint8_t i=0; i<limit ; i++)
   {
-    bool next_array[8][8];                      //Initialize array TO STORE calculated values
     memset(next_array, 0, 64*sizeof(bool));     //Ensure array is blank
     next_color = starting_color + 60*(i+1);
     if( next_color > 255)
     {
       next_color = 0 + (next_color - 255);
-    }
-    
+    }    
+    CRGB next_led_color = CHSV(next_color, 255, 127);
     //Determine next pixels using PREVIOUS AND NEXT ARRAYS
-    for(uint8_t x=0; x<8; x++)
+    for(uint8_t x=0; x<rows; x++)
     {
-      for(uint8_t y=0; y<8; y++)
+      for(uint8_t y=0; y<cols; y++)
       {
         if(previous_array[x][y] == true)
         {
-          if(previous_array[x+1][y] == false &&  (x+1 < 8))
+          for (size_t k = 0; k < 4; k++)
           {
-            next_array[x+1][y] = true;
-            leds[XY(x+1, y)] = CHSV(next_color, 255, 127);
+            int pos_x = x + direction_array[k][0];
+            int pos_y = y + direction_array[k][1];
+            if (pos_x < 8 && pos_x >= 0 && pos_y < 8 && pos_y >= 0 && !previous_array[pos_x][pos_y])
+            {
+              next_array[pos_x][pos_y] = 1;
+              previous_array[pos_x][pos_y] = 1;
+              leds[pos_x << 3 + pos_y] = next_led_color;
+            }
           }
-          if(previous_array[x-1][y] == false && (x-1 > -1))
-          {
-            next_array[x-1][y] = true;
-            leds[XY(x-1, y)] = CHSV(next_color, 255, 127);
-          }
-          if(previous_array[x][y+1] == false && (y+1 < 8))
-          {
-            next_array[x][y+1] = true;
-            leds[XY(x, y+1)] = CHSV(next_color, 255, 127);
-          }
-          if(previous_array[x][y-1] == false && (y-1 > -1))
-          {
-            next_array[x][y-1] = true;
-            leds[XY(x, y-1)] = CHSV(next_color, 255, 127);
-          }
-        }
-      }
-    }
-    //Merge next_array into previous array
-    for(uint8_t x=0; x<8; x++)
-    {
-      for(uint8_t y=0; y<8; y++)
-      {
-        if(next_array[x][y] == true)
-        {
-          previous_array[x][y] = true;
         }
       }
     }
@@ -566,134 +550,6 @@ void anim_fireworks()
     LEDS.show();
     delay(100);
   }
-
-
- /* 
-  for(uint8_t i =0; i< limit ; i++)
-  {
-    pos next_tier_leds[25];    //Create position array to contain expected values (overfill it, just to be safe)
-    uint8_t current = 0;       //This is used to keep track of the next empty space in the next_tier_leds array
-                               //When new values are added, it increments
-
-    next_color = starting_color+(60*(i+1));   //Set the color for the current tier of leds
-    if(next_color > 255)                  //There is a color limit of 255, so make sure it falls between 0-255
-    {
-      next_color = 0 + (next_color -255);
-    }
-
-    Serial.print("--->I: ");
-    Serial.print(i, DEC);
-    Serial.print(" , Current: ");
-    Serial.print(current, DEC);
-    Serial.print("\n");
-    
-    for(int8_t x = 0; x< 8; x++)
-    {
-      for(int8_t y = 0; y < 8 ; y++)
-      {
-        if(leds[XY(x,y)].r !=0 && leds[XY(x,y)].g != 0 && leds[XY(x,y)].b != 128)
-        {
-          Serial.print("---->LED FOUND");
-          if(x+1 < 8)
-          {
-            if(leds[XY(x+1, y)].r == 0 && leds[XY(x+1, y)].g == 0 && leds[XY(x+1, y)].b == 128)  //If the adjacent LED is off, check to see if the LED is in the list already
-            {
-              if(current !=0)
-              {
-                if(in_list((pos) {x+1, y}, next_tier_leds, current) == false)
-                {
-                  Serial.print(" - Didn't match , added to list");
-                  next_tier_leds[current] = {x+1, y};
-                  current++;
-                }
-              }
-              else
-              {
-                Serial.print(" - Didn't match , added to list");
-                next_tier_leds[current] = {x+1, y};
-                current++;
-              }
-            }
-          }
-          
-          if(x-1 > -1)
-          {
-            if(leds[XY(x-1, y)].r == 0 && leds[XY(x-1, y)].g == 0 && leds[XY(x-1, y)].b == 128 )
-            {
-              if(current !=0)
-              {
-                if(in_list((pos) {x-1, y}, next_tier_leds, current) == false)
-                {
-                  Serial.print(" - Didn't match , added to list");
-                  next_tier_leds[current] = {x-1, y};
-                  current++;
-                }
-              }
-              else
-              {
-                Serial.print(" - Didn't match , added to list");
-                next_tier_leds[current] = {x-1, y};
-                current++;
-              }
-            }
-          }
-
-          if(y+1 < 8)
-          {
-            if(leds[XY(x, y+1)].r == 0 && leds[XY(x, y+1)].g == 0 && leds[XY(x, y+1)].b == 128)
-            {
-              if(current !=0)
-              {
-                if(in_list((pos) {x, y+1}, next_tier_leds, current) == false)
-                {
-                  Serial.print(" - Didn't match , added to list");
-                  next_tier_leds[current] = {x, y+1};
-                  current++;
-                }
-              }
-              else
-              {
-                Serial.print(" - Didn't match , added to list");
-                next_tier_leds[current] = {x, y+1};
-                current++;
-              }
-            } 
-          }
-
-          if(y-1 > -1)
-          {
-            if(leds[XY(x, y-1)].r == 0 && leds[XY(x, y-1)].g == 0 && leds[XY(x, y-1)].b == 128)
-            {
-              if(current !=0)
-              {
-                if(in_list((pos) {x, y-1}, next_tier_leds, current) == false)
-                {
-                  Serial.print(" - Didn't match , added to list");
-                  next_tier_leds[current] = {x, y-1};
-                  current++;
-                }
-              }
-              else
-              {
-                Serial.print(" - Didn't match , added to list");
-                next_tier_leds[current] = {x, y-1};
-                current++;
-              }            
-            }
-          }
-          
-          Serial.print("\n");
-        }
-      }
-    }
-
-    Serial.print("NEXT_LEDS_AMOUNT: ");
-    Serial.print(current, DEC);
-    Serial.print("\n");
-    leds_from_struct(next_tier_leds, current, next_color, 255, 127);   //Light the leds in the found pixels list
-    LEDS.show();                    //Show and delay the leds before determining the next set of leds
-    delay(50); 
-  } */
   
   delay(500);
   LEDS.clear();
