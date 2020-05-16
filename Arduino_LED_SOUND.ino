@@ -471,7 +471,7 @@ void anim_fireworks()
   /* -------- DETERMINE STARTING VARIABLES ---------- */
   uint8_t starting_pointX = (rand() % (7-0+1));           //Set the starting point for the firworks
   uint8_t starting_pointY = (rand() % (7-0+1));
-  uint8_t limit = (rand() % (4-1 +1)) + 1;               //Set a random limit between 1 and 4 (to determine the fireworks size)
+  uint8_t limit = (rand() % (3-1 +1)) + 1;               //Set a random limit between 1 and 4 (to determine the fireworks size)
   uint16_t starting_color = setRandColor();                //Set a random starting color
   uint16_t next_color;
 
@@ -503,8 +503,72 @@ void anim_fireworks()
 
   Serial.println("->First LED displayed");
   Serial.println("-->Entering For Loop");
-
+  //Set a 2d array for storing + keeping track of values
   
+  bool previous_array[8][8];                                //Initialize array to store previous values FOR CALCULATION
+  memset(previous_array, 0, 64*sizeof(bool));               //Set all values to 0
+  previous_array[starting_pointX][starting_pointY] = true;  //Set first value to our first pixel location
+
+
+  //TEST AREA
+  for(uint8_t i=0; i<limit ; i++)
+  {
+    bool next_array[8][8];                      //Initialize array TO STORE calculated values
+    memset(next_array, 0, 64*sizeof(bool));     //Ensure array is blank
+    next_color = starting_color + 60*(i+1);
+    if( next_color > 255)
+    {
+      next_color = 0 + (next_color - 255);
+    }
+    
+    //Determine next pixels using PREVIOUS AND NEXT ARRAYS
+    for(uint8_t x=0; x<8; x++)
+    {
+      for(uint8_t y=0; y<8; y++)
+      {
+        if(previous_array[x][y] == true)
+        {
+          if(previous_array[x+1][y] == false &&  (x+1 < 8))
+          {
+            next_array[x+1][y] = true;
+            leds[XY(x+1, y)] = CHSV(next_color, 255, 127);
+          }
+          if(previous_array[x-1][y] == false && (x-1 > -1))
+          {
+            next_array[x-1][y] = true;
+            leds[XY(x-1, y)] = CHSV(next_color, 255, 127);
+          }
+          if(previous_array[x][y+1] == false && (y+1 < 8))
+          {
+            next_array[x][y+1] = true;
+            leds[XY(x, y+1)] = CHSV(next_color, 255, 127);
+          }
+          if(previous_array[x][y-1] == false && (y-1 > -1))
+          {
+            next_array[x][y-1] = true;
+            leds[XY(x, y-1)] = CHSV(next_color, 255, 127);
+          }
+        }
+      }
+    }
+    //Merge next_array into previous array
+    for(uint8_t x=0; x<8; x++)
+    {
+      for(uint8_t y=0; y<8; y++)
+      {
+        if(next_array[x][y] == true)
+        {
+          previous_array[x][y] = true;
+        }
+      }
+    }
+
+    LEDS.show();
+    delay(100);
+  }
+
+
+ /* 
   for(uint8_t i =0; i< limit ; i++)
   {
     pos next_tier_leds[25];    //Create position array to contain expected values (overfill it, just to be safe)
@@ -516,18 +580,18 @@ void anim_fireworks()
     {
       next_color = 0 + (next_color -255);
     }
-    
+
     Serial.print("--->I: ");
     Serial.print(i, DEC);
     Serial.print(" , Current: ");
     Serial.print(current, DEC);
     Serial.print("\n");
-
+    
     for(int8_t x = 0; x< 8; x++)
     {
       for(int8_t y = 0; y < 8 ; y++)
       {
-        if(leds[XY(x,y)].r != 0 && leds[XY(x,y)].g != 0 && leds[XY(x,y)].b != 128)
+        if(leds[XY(x,y)].r !=0 && leds[XY(x,y)].g != 0 && leds[XY(x,y)].b != 128)
         {
           Serial.print("---->LED FOUND");
           if(x+1 < 8)
@@ -629,7 +693,7 @@ void anim_fireworks()
     leds_from_struct(next_tier_leds, current, next_color, 255, 127);   //Light the leds in the found pixels list
     LEDS.show();                    //Show and delay the leds before determining the next set of leds
     delay(50); 
-  }
+  } */
   
   delay(500);
   LEDS.clear();
