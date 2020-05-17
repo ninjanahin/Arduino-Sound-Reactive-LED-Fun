@@ -55,7 +55,7 @@ void loop() {
     global_colour = 0;                      //Reset Global Colour variable for animations
     LEDS.clear();                           //Clear the LEDS from the previous mode
     
-    if(programMode > 7)                     //If the program mode clicks past 7, reset back to the first 
+    if(programMode > 8)                     //If the program mode clicks past 7, reset back to the first 
     {
       programMode= 1;
     }
@@ -84,6 +84,9 @@ void loop() {
       break;
     case 7 :
       anim_fireworks();
+      break;
+    case 8 :
+      anim_cycle();
       break;
   }
 
@@ -146,6 +149,62 @@ void leds_from_struct(pos posArray[], int numElements, int hue, int sat, int bri
         leds[XY(posArray[i].x, posArray[i].y)] = CRGB::Black;
       }
     }
+  }
+}
+
+void shift_right(pos posArray[], int numElements, int numShifts)
+{
+  for(int i=0; i< (numShifts % 8); i++)         //There is a maximum of 7 shifts across the board that can be made without repeating
+  {
+    for(int j=0; j< numElements; j++)
+    {
+      posArray[j].y +=1;
+      if(posArray[j].y > 7)
+      {
+        posArray[j].y = 0;
+      }
+    }
+  }
+}
+
+void shift_diagonal(pos posArray[], int numElements, int numShifts, uint8_t dir)
+{
+  //This function is for altering variables in a given position array to shift them diagonally by numShift spaces
+  //dir is the direction (1 == ascending positive , 2 = descending positive, 3 = ascending negative, 4 = descending negative)
+  //This function is useful for animating models determined in a posArray when used in conjunction with the global state variable
+  //There is no check to see if the values generated are valid, If they are invalid, they won't be displayed when leds_from_struct() is called
+
+  int8_t incrementX, incrementY;  //The increment amount for X and Y which helps to shape direction
+  
+  switch(dir)
+  {
+    case 1:
+      incrementX = -1;    //You start from bottom left and work to top right
+      incrementY = 1;     //This means decreasing X and increasing Y
+      break;
+    case 2:
+      incrementX = 1;     //You start from top left and work to bottom right
+      incrementY = 1;     //This means increasing X and Y
+      break;
+    case 3:
+      incrementX = -1;    //You start from bottom right and work to top left
+      incrementY = -1;    //This means decreasing X and Y
+      break;
+    case 4:
+      incrementX = 1;     //You start from top right and work to bottom left
+      incrementY = -1;    //This means increasing X and decreasing Y
+      break;
+
+    default:
+      incrementX = 0;    //In case dir isn't set
+      incrementY = 0;    
+      break;
+  }
+
+  for(uint8_t i=0; i< numElements; i++)
+  {
+    posArray[i].x += (incrementX * numShifts);
+    posArray[i].y += (incrementY * numShifts);
   }
 }
 
@@ -225,8 +284,6 @@ void anim_wave()
 {
    //Wave animation
    pos wave[8] = {{2,0}, {3,1}, {4,2}, {5,3}, {5,4}, {4,5}, {3,6}, {2,7}};        //Basically a sine wave shape
-   pos border_top[8] = {{0,0}, {0,1}, {0,2}, {0,3}, {0,4}, {0,5}, {0,6}, {0,7}};   //Top Border
-   pos border_bot[8] = {{7,0}, {7,1}, {7,2}, {7,3}, {7,4}, {7,5}, {7,6}, {7,7}};   //Bottom Border
    int multiplier = 1;
    
    audio_val = analogRead(MIC_PIN);
@@ -245,14 +302,6 @@ void anim_wave()
         multiplier = 5;
         break;
    }
-
-   leds_from_struct(border_top, 8, 234, 4, 36);                                   //Set the top border to grey
-   leds_from_struct(border_bot, 8, 234, 4, 36);                                   //Set the bottom border to grey
-   leds[XY(border_top[state*2].x, border_top[state*2].y)] = CHSV(0,0, 255);       //Create a white dash that runs along the top grey border (Pixel 1)
-   leds[XY(border_top[state*2+1].x, border_top[state*2+1].y)] = CHSV(0,0, 255);   //Create a white dash that runs along the top grey border (Pixel 2)
-   
-   leds[XY(border_bot[state*2].x, border_bot[state*2].y)] = CHSV(0,0, 255);       //Create a white dash that runs along the bottom grey border (Pixel 1)
-   leds[XY(border_bot[state*2+1].x, border_bot[state*2+1].y)] = CHSV(0,0, 255);   //Create a white dash that runs along the bottom border (Pixel 2)
    
    //Every state change --> Change colour --> transition colour
    shift_right(wave, 8, state);                                               //Shift right by X places based on the current animation state
@@ -273,21 +322,6 @@ void anim_wave()
    {
       global_colour = 0;
    }
-}
-
-void shift_right(pos posArray[], int numElements, int numShifts)
-{
-  for(int i=0; i< (numShifts % 8); i++)         //There is a maximum of 7 shifts across the board that can be made without repeating
-  {
-    for(int j=0; j< numElements; j++)
-    {
-      posArray[j].y +=1;
-      if(posArray[j].y > 7)
-      {
-        posArray[j].y = 0;
-      }
-    }
-  }
 }
 
 void anim_rain()
@@ -564,137 +598,103 @@ void anim_fireworks()
     }
 
     LEDS.show();
-    delay(100);
+    delay(50);
   }
-
-
- /* 
-  for(uint8_t i =0; i< limit ; i++)
-  {
-    pos next_tier_leds[25];    //Create position array to contain expected values (overfill it, just to be safe)
-    uint8_t current = 0;       //This is used to keep track of the next empty space in the next_tier_leds array
-                               //When new values are added, it increments
-
-    next_color = starting_color+(60*(i+1));   //Set the color for the current tier of leds
-    if(next_color > 255)                  //There is a color limit of 255, so make sure it falls between 0-255
-    {
-      next_color = 0 + (next_color -255);
-    }
-
-    Serial.print("--->I: ");
-    Serial.print(i, DEC);
-    Serial.print(" , Current: ");
-    Serial.print(current, DEC);
-    Serial.print("\n");
-    
-    for(int8_t x = 0; x< 8; x++)
-    {
-      for(int8_t y = 0; y < 8 ; y++)
-      {
-        if(leds[XY(x,y)].r !=0 && leds[XY(x,y)].g != 0 && leds[XY(x,y)].b != 128)
-        {
-          Serial.print("---->LED FOUND");
-          if(x+1 < 8)
-          {
-            if(leds[XY(x+1, y)].r == 0 && leds[XY(x+1, y)].g == 0 && leds[XY(x+1, y)].b == 128)  //If the adjacent LED is off, check to see if the LED is in the list already
-            {
-              if(current !=0)
-              {
-                if(in_list((pos) {x+1, y}, next_tier_leds, current) == false)
-                {
-                  Serial.print(" - Didn't match , added to list");
-                  next_tier_leds[current] = {x+1, y};
-                  current++;
-                }
-              }
-              else
-              {
-                Serial.print(" - Didn't match , added to list");
-                next_tier_leds[current] = {x+1, y};
-                current++;
-              }
-            }
-          }
-          
-          if(x-1 > -1)
-          {
-            if(leds[XY(x-1, y)].r == 0 && leds[XY(x-1, y)].g == 0 && leds[XY(x-1, y)].b == 128 )
-            {
-              if(current !=0)
-              {
-                if(in_list((pos) {x-1, y}, next_tier_leds, current) == false)
-                {
-                  Serial.print(" - Didn't match , added to list");
-                  next_tier_leds[current] = {x-1, y};
-                  current++;
-                }
-              }
-              else
-              {
-                Serial.print(" - Didn't match , added to list");
-                next_tier_leds[current] = {x-1, y};
-                current++;
-              }
-            }
-          }
-
-          if(y+1 < 8)
-          {
-            if(leds[XY(x, y+1)].r == 0 && leds[XY(x, y+1)].g == 0 && leds[XY(x, y+1)].b == 128)
-            {
-              if(current !=0)
-              {
-                if(in_list((pos) {x, y+1}, next_tier_leds, current) == false)
-                {
-                  Serial.print(" - Didn't match , added to list");
-                  next_tier_leds[current] = {x, y+1};
-                  current++;
-                }
-              }
-              else
-              {
-                Serial.print(" - Didn't match , added to list");
-                next_tier_leds[current] = {x, y+1};
-                current++;
-              }
-            } 
-          }
-
-          if(y-1 > -1)
-          {
-            if(leds[XY(x, y-1)].r == 0 && leds[XY(x, y-1)].g == 0 && leds[XY(x, y-1)].b == 128)
-            {
-              if(current !=0)
-              {
-                if(in_list((pos) {x, y-1}, next_tier_leds, current) == false)
-                {
-                  Serial.print(" - Didn't match , added to list");
-                  next_tier_leds[current] = {x, y-1};
-                  current++;
-                }
-              }
-              else
-              {
-                Serial.print(" - Didn't match , added to list");
-                next_tier_leds[current] = {x, y-1};
-                current++;
-              }            
-            }
-          }
-          
-          Serial.print("\n");
-        }
-      }
-    }
-
-    Serial.print("NEXT_LEDS_AMOUNT: ");
-    Serial.print(current, DEC);
-    Serial.print("\n");
-    leds_from_struct(next_tier_leds, current, next_color, 255, 127);   //Light the leds in the found pixels list
-    LEDS.show();                    //Show and delay the leds before determining the next set of leds
-    delay(50); 
-  } */
   
   delay(500);
   LEDS.clear();
+}
+
+void anim_daytime()
+{
+  // --- Models --- //
+  pos sun[4] = {{1,1}, {1,2}, {2,1}, {2,2}};                                //The sun body
+  pos sun_1[8] = {{3,1}, {0,2}, {2,0}, {1,3}, {1,0}, {2,3}, {3,2}, {0,1}};  //The points for the sun ray animation
+  pos tree_1[6] = {{2,5}, {2,6}, {3,4}, {3,5}, {3,6}, {3,7}};               //The leaves of the tree
+  pos tree_2[8] = {{4,5}, {4,6}, {5,5}, {5,6}, {6,4}, {6,5}, {6,6}, {6,7}}; //The base of the tree
+
+  // --- Setting Models --- //
+  leds_from_struct(sun, 4,  64, 200, 100);                                  //Set the Colour of the sun
+  leds_from_struct(sun_1, 8, 64, 200, 90);                                  //Set the colour of the sun rays (non-animated part)
+  leds_from_struct(tree_1, 6, 96, 255, 200);                                //Set the colour of the leaves
+  leds_from_struct(tree_2, 8, 30, 255, 80);                                //Set the colour of the Tree base
+  
+  // --- Setting background --- //
+  for(uint8_t x=0; x<8; x++)
+  {
+    for(uint8_t y=0; y<8; y++)
+    {
+      if(x == 7)
+      {
+        leds[XY(x,y)] = CRGB::LawnGreen;                                       //Set the grass
+        leds[XY(x,y)] %= 10;                                                   //Fade the colour immensely
+      }
+      else if(leds[XY(x,y)].r == 0 && leds[XY(x, y)].g == 0 && leds[XY(x, y)].b == 0)    //Check to see if the pixel is on (black)
+      {
+        leds[XY(x,y)] = CRGB::DeepSkyBlue;                                         //Set the colour of the sky
+        leds[XY(x,y)] %= 10;                                                    //Fade the colour immensely
+      }
+    }
+  }
+
+  //  -- Animate the Sun -- //
+  if(state > 3)
+  {
+    state = 0;                                                                //Check that the state isn't greater than 3 (from other modes, or incrementing)
+  }
+  leds[XY(sun_1[state*2].x, sun_1[state*2].y)] = CRGB::Gold;                //Set the colour of two of the points within the sun's animation points based on the current state
+  leds[XY(sun_1[state*2 +1].x, sun_1[state*2 + 1].y)] = CRGB::Gold;
+  state++;                                                                    //Increment the state so the colour cycles around and animates
+  
+  LEDS.show();
+  delay(50);
+  LEDS.clear();
+}
+
+void anim_cycle()
+{
+  //  --- Models --- //
+  pos sun[4] = {{7,7}, {7,8}, {8,7}, {8,8}};                                    //Start the animation in the bottom left corner only showing one pixel
+  pos moon[8] = {{7,7}, {7,8}, {8,7}, {8,6}, {9,7}, {9,6}, {10,7}, {10,8}};     //Rely on the leds_from_struct logic to not turn on any LEDS outside 8x8 grid parameters
+
+  pos cycle[1][3] = {sun, moon};
+  
+  // --- Logic --- //
+  uint8_t draw = 0;  //If the switch is 0 -> draw sun , else draw moon
+  uint8_t pos_len;
+  if(state > 8)
+  {
+    state = 0;
+    if(draw == 0)
+    {
+      draw =1;
+      pos_len = 8;
+    }
+    else if(draw == 1)
+    {
+      draw = 0;
+      pos_len = 4;
+    }
+  }
+
+
+  
+  if(state < 4)
+  {
+    //If the state is less than 4 --> Proceed upwards!
+    
+  }
+  else
+  {
+   //If the state is greater than 4 --> Begin your descent!
+
+    //Shift the elements first
+
+  }
+  
+   
+  LEDS.show();
+  delay(50);
+  LEDS.clear();
+  state++;  
 }
