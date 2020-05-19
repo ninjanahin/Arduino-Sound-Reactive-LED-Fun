@@ -31,6 +31,13 @@ typedef struct{ uint8_t x; uint8_t y; } pos;   //To contain co-ordinates for pix
 uint16_t state = 0;
 uint16_t global_colour = 0;
 
+//For Pong Game
+pos paddle[3] = {{7,0}, {6,0}, {5,0}};
+pos ball[1] = {{6,3}};
+uint8_t ball_direction = 1;
+int previous_audio_val = 0;
+bool game_over = false;
+
 void setup() {
   // put your setup code here, to run once:
     
@@ -40,7 +47,10 @@ void setup() {
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS);     //FastLED Setup (Using WS812 5050 RGB LED'S)
   Serial.begin(9600);                                                   //Serial Output Setup (For debugging)
 
-  anim_start();                                                         //Introductory Animation
+  //anim_start();                                                         //Introductory Animation
+  do{
+    game_pong();
+  }while(1);
 }
 
 void loop() {
@@ -138,7 +148,7 @@ void leds_from_struct(pos posArray[], int numElements, int hue, int sat, int bri
   
   for(int i=0; i< numElements; i++)
   {
-    if(XY(posArray[i].x, posArray[i].y) < 64)
+    if(posArray[i].x < 8 && posArray[i].y <8)
     {
       if(hue != -1)
       {
@@ -147,6 +157,36 @@ void leds_from_struct(pos posArray[], int numElements, int hue, int sat, int bri
       else
       {
         leds[XY(posArray[i].x, posArray[i].y)] = CRGB::Black;
+      }
+    }
+  }
+}
+
+void shift_up(pos posArray[], int numElements, int numShifts)
+{
+  for(int i=0; i< (numShifts % 8); i++)
+  {
+    for(int j=0; j< numElements; j++)
+    {
+      posArray[j].x -=1;
+      if(posArray[j].x < 0)
+      {
+        posArray[j].x = 7;
+      }
+    }
+  }
+}
+
+void shift_down(pos posArray[], int numElements, int numShifts)
+{
+  for(int i=0; i< (numShifts % 8); i++)
+  {
+    for(int j=0; j< numElements; j++)
+    {
+      posArray[j].x +=1;
+      if(posArray[j].x > 7)
+      {
+        posArray[j].x = 0;
       }
     }
   }
@@ -162,6 +202,21 @@ void shift_right(pos posArray[], int numElements, int numShifts)
       if(posArray[j].y > 7)
       {
         posArray[j].y = 0;
+      }
+    }
+  }
+}
+
+void shift_left(pos posArray[], int numElements, int numShifts)
+{
+  for(int i=0; i< (numShifts % 8); i++)         //There is a maximum of 7 shifts across the board that can be made without repeating
+  {
+    for(int j=0; j< numElements; j++)
+    {
+      posArray[j].y -=1;
+      if(posArray[j].y < 0)
+      {
+        posArray[j].y = 7;
       }
     }
   }
@@ -655,46 +710,220 @@ void anim_cycle()
 {
   //  --- Models --- //
   pos sun[4] = {{7,7}, {7,8}, {8,7}, {8,8}};                                    //Start the animation in the bottom left corner only showing one pixel
-  pos moon[8] = {{7,7}, {7,8}, {8,7}, {8,6}, {9,7}, {9,6}, {10,7}, {10,8}};     //Rely on the leds_from_struct logic to not turn on any LEDS outside 8x8 grid parameters
+  pos moon[8] = {{7,7}, {7,8}, {8,7}, {8,8}, {9,8}, {9,9}, {6,8}, {6,9}};     //Rely on the leds_from_struct logic to not turn on any LEDS outside 8x8 grid parameters
 
-  pos cycle[1][3] = {sun, moon};
+  CRGB colours[2] = {CRGB::Gold, CRGB::Silver};
+
+  Serial.println("Cycle entered");
   
   // --- Logic --- //
-  uint8_t draw = 0;  //If the switch is 0 -> draw sun , else draw moon
-  uint8_t pos_len;
-  if(state > 8)
+  
+  if(state > 19)      //There are 20 states total -> 9 for Sun/Moon each and 1 each as a gap
   {
     state = 0;
-    if(draw == 0)
-    {
-      draw =1;
-      pos_len = 8;
-    }
-    else if(draw == 1)
-    {
-      draw = 0;
-      pos_len = 4;
-    }
-  }
-
-
-  
-  if(state < 4)
-  {
-    //If the state is less than 4 --> Proceed upwards!
     
   }
-  else
+
+  if(state == 0 || state == 10)
   {
-   //If the state is greater than 4 --> Begin your descent!
-
-    //Shift the elements first
-
+    //Show background only
+  }
+  else if(state > 0 && state < 6)
+  {
+    shift_diagonal(sun, 4, state-1, 3);           //Shift the sun upwards
+    leds_from_struct(sun, 4, 64, 255, 127);     //Colour the  sun
+    for(uint8_t i=0; i<64; i++)
+    {
+      if(! leds[i])
+      {
+        leds[i] = CHSV(160, 255, 20+ state*30);
+      }
+    }
+  }
+  else if(state > 5 && state < 10)
+  {
+    shift_diagonal(sun, 4, 4, 3);               //Shift the sun upwards first
+    shift_diagonal(sun, 4, (state-1)-4, 4);     //Then shift the sun downwards
+    leds_from_struct(sun, 4, 64, 255, 127);     //Colour the sun
+    for(uint8_t i=0; i<64; i++)
+    {
+      if(! leds[i])
+      {
+        leds[i] = CHSV(160, 255, 170 - (state-4)*30);
+      }
+    }
+  }
+  else if(state > 10 && state < 16)
+  {
+    shift_diagonal(moon, 8, (state-11), 3);           //Shift the moon upwards
+    leds_from_struct(moon, 8, 0, 0, 127);       //Colour the moon
+    for(uint8_t i=0; i<64; i++)
+    {
+      if(! leds[i])
+      {
+        leds[i] = CHSV(160, 255, 20);
+      }
+    }
+  }
+  else if(state > 15 && state < 20)
+  {
+    shift_diagonal(moon, 8, 4, 3);               //Shift the moon upwards first
+    shift_diagonal(moon, 8, (state-11)-4, 4);     //Then shift the moon downwards
+    leds_from_struct(moon, 8, 0, 0, 127);       //Colour the moon
+    for(uint8_t i=0; i<64; i++)
+    {
+      if(! leds[i])
+      {
+        leds[i] = CHSV(160, 255, 20);
+      }
+    }
   }
   
-   
   LEDS.show();
-  delay(50);
+  delay(100);
   LEDS.clear();
   state++;  
+}
+
+void anim_dancing_man()
+{
+  // -- Models -- //
+  //pos disco_ball = {{0,3}, {0,4}, {1,3}, {1,4}};
+  //pos disco_ray = {{2,5}, {3,6}, {4,7}, {2,2}, {3,1}, {4,0}};
+  //pos disco_ray2 = {{2,4}, {3,5}, {4,6}, {5,7}, {2,3}, {3,2}, {2,1}, {1,0}};
+ // pos man_1 = {{7,2}, {7,4}, {6,3}, {5,3}, {5,2}, {5,4}, {4,3}};
+  
+}
+
+void game_pong()
+{ 
+  //Serial.println(audio_val, DEC);
+  pos wall[8] = {{0,7}, {1,7}, {2,7}, {3,7}, {4,7}, {5,7}, {6,7}, {7,7}};
+  pos game_over_face[20] = {{0,1}, {0,3}, {0,4}, {0,6}, {1,2}, {1,5}, {2,1}, {2,3}, {2,4}, {2,6}, 
+                            {6,1}, {5,1}, {4,1}, {4,2}, {4,3}, {4,4}, {4,5}, {4,6}, {5,6}, {6,6}};
+  //bool game_over = false;
+
+  if(game_over == true)
+  {
+    anim_start();
+    ball[0].x = (rand() % (6-1 +1) + 1);
+    ball[0].y = (rand() % (5-2 +1) + 2);
+    ball_direction = (rand() % (4-1 +1) + 1);
+    game_over = false;
+  }
+  while(digitalRead(BUTTON_PIN) != HIGH && game_over == false)
+  {
+    EVERY_N_MILLIS(5)
+    {
+      // -- Grab the audio value & Shift the board according to the value --//
+      audio_val = analogRead(MIC_PIN);
+      
+      if(audio_val > 310 && audio_val < 330)
+      {
+        //Check to see if it's not resting on the BOTTOM of X
+        if(in_list((pos){7,0}, paddle, 3) == false)
+        {
+          //Serial.println("Shift_down");
+          shift_down(paddle, 3, 1);
+        }
+      }
+      else if(audio_val > 350)
+      {
+        //Check to see if it's not resting on the TOP of X
+        if(in_list((pos){0,0}, paddle, 3) == false)
+        {
+          //Serial.println("Shift_up");
+          shift_up(paddle, 3, 1);
+        }
+      }
+
+      // -- Light the corresponding models based on their calculated positions -- //
+      leds_from_struct(paddle, 3, 100, 255, 255);
+      leds_from_struct(wall, 8, 100, 255, 255);
+      leds_from_struct(ball, 1, 100, 255, 255);
+  
+      LEDS.show();
+      LEDS.clear();
+    }
+    EVERY_N_MILLIS(200)
+    {
+      // -- IF THE BALL HITS A WALL --> CHANGE THE BALL DIRECTION -- //
+      
+      if(ball[0].y == 1 && (in_list((pos) {ball[0].x, 0}, paddle, 3) == false))
+      {
+        game_over = true;
+      }
+      else if(ball[0].y == 6 && ball[0].x ==0 || ball[0].y == 6 & ball[0].x == 7 || ball[0].y == 1 && ball[0].x == 0 || ball[0].y == 1 && ball[0].x == 7)
+      {
+        switch(ball_direction)
+        {
+          case 1:
+            ball_direction = 4;
+            break;
+          case 2:
+            ball_direction = 3;
+            break;
+          case 3:
+            ball_direction = 2;
+            break;
+          case 4:
+            ball_direction = 1;
+            break;
+        }
+      }
+      else if(ball[0].y == 6 || ball[0].y==1)
+      {
+        switch(ball_direction)
+        {
+          case 1:
+            ball_direction = 3;
+            break;
+
+          case 2:
+            ball_direction = 4;
+            break;
+
+          case 3:
+            ball_direction = 1;
+            break;
+
+          case 4:
+            ball_direction = 2;
+            break;
+        }
+      }
+      else if(ball[0].x == 0 || ball[0].x == 7)
+      {
+        switch(ball_direction)
+        {
+          case 1: 
+            ball_direction = 2;
+            break;
+          case 2:
+            ball_direction = 1;
+            break;
+          case 3:
+            ball_direction = 4;
+            break;
+          case 4:
+            ball_direction = 3;
+            break;
+        }
+      }
+      
+      // -- SHIFT THE BALL BASED ON BALL DIRECTION -- //
+      shift_diagonal(ball, 1, 1, ball_direction);
+    }
+  }
+
+  if(game_over == true)
+  {
+    // -- Display game over -- //
+    leds_from_struct(game_over_face, 20, 0, 255, 127);
+    LEDS.show();
+    delay(2000);
+    LEDS.clear();
+    //break;
+  }
+  
 }
