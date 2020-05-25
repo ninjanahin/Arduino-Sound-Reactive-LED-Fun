@@ -2,41 +2,49 @@
 #include <fix_fft.h>
 #include <FastLED.h>
 
-#define NUM_LEDS 64
-#define LED_TYPE WS2812
-#define COLOR_ORDER GRB
-#define DATA_PIN 7
-CRGB leds[NUM_LEDS]; //Initialize LED Array
-
-uint8_t programMode = 1;
-int buttonCurrent = LOW;
-int buttonPrevious = LOW;
+//-- LED MATRIX SETUP --//
+#define NUM_LEDS 64         //The number of LEDS on the Matrix/LED Strip
+#define LED_TYPE WS2812     //The type of LEDS
+#define COLOR_ORDER GRB     //The Color order --> Took this from a tutorial
+#define DATA_PIN 7          //The port in which the LED Matrix is plugged into (Digital Input)
+CRGB leds[NUM_LEDS];        //Initialization of the LED Array
 
 
-//Microphone Setup
-#define MIC_PIN A0 //Analog input area of the Arduino
+//-- Menu Setup --//
+uint8_t programMode = 1;    //This tracks which animation is currently running
+int buttonCurrent = LOW;    //These variables are to establish accurate button state detection
+int buttonPrevious = LOW;   //These variables are to establish accurate button state detection
 
-//Button Setup
-#define BUTTON_PIN 13
 
-//FFT Transform variables
-char im[128];         //These are the set of imaginary numbers we will be working with
-char data[128];       //These are the set of real numbers we will be working with
-char data_avgs[8];    //These are the averages of the FFT outputs we will take
-int audio_val;        //This is the audio value read in from the microphone
-#define SAMPLES 128   //The number of samples we will use to create the FFT
+//-- Microphone Setup --//
+#define MIC_PIN A0          //Defining which port the Microphone is plugged into
 
-//For animation simplicity
+
+//-- Button Setup --//
+#define BUTTON_PIN 13       //Defining which data port the button is plugged into (Digital Input)
+
+
+//-- FFT Transform variables --//
+char im[128];               //These are the set of imaginary numbers we will be working with
+char data[128];             //These are the set of real numbers we will be working with
+char data_avgs[8];          //These are the averages of the FFT outputs we will take
+int audio_val;              //This is the audio value read in from the microphone
+#define SAMPLES 128         //The number of samples we will use to create the FFT
+
+
+//-- Global Animation variables --//
 typedef struct{ uint8_t x; uint8_t y; } pos;   //To contain co-ordinates for pixel location --> use with XY() function
-uint16_t state = 0;
-uint16_t global_colour = 0;
+uint16_t state = 0;                            //Animation state --> If it increments , the position variables used are likely to change too to create an animation
+uint16_t global_colour = 0;                    //In some cases, it may be useful to have a global colour instead of setting it manually everytime
 
-//For Pong Game
-pos paddle[3] = {{7,0}, {6,0}, {5,0}};
-pos ball[1] = {{6,3}};
-uint8_t ball_direction = 1;
-int previous_audio_val = 0;
-bool game_over = false;
+
+//-- Global Pong Game variables --//
+pos paddle[3] = {{7,0}, {6,0}, {5,0}};        //The position struct containing the starting X and Y points for the paddle
+pos ball[1] = {{6,3}};                        //The position struct containing the starting X and Y points for the ball 
+uint8_t ball_direction = 1;                   //A value from 1-4 that reflects the ball direction --> More info, see shift_diagonal() in Helper Function area
+int previous_audio_val = 0;                   //Previously determined audio value for normalizing read in audio values
+bool game_over = false;                       //A boolean for determining whether or not the game is over. 
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -47,10 +55,7 @@ void setup() {
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS);     //FastLED Setup (Using WS812 5050 RGB LED'S)
   Serial.begin(9600);                                                   //Serial Output Setup (For debugging)
 
-  //anim_start();                                                         //Introductory Animation
-  do{
-    game_pong();
-  }while(1);
+  anim_start();                                                         //Introductory Animation --> See anim_start() in Animation function area
 }
 
 void loop() {
@@ -70,33 +75,34 @@ void loop() {
       programMode= 1;
     }
   }  
-  buttonPrevious = buttonCurrent; //This is to prevent re-entering the if statement again
-  
-  switch(programMode)
+  buttonPrevious = buttonCurrent;           //This is to prevent re-entering the IF statement on long press of the button
+
+  // -- ANIMATION MENU -- //
+  switch(programMode)                       //Switch statement containing which animation functions are called based on the programMode
   {
     case 1 :
-      anim_randPixel();
+      anim_randPixel();                     //1. Randomly generated coloured Pixels based on sound detection
       break;
     case 2 :
-      anim_wave();
+      anim_wave();                          //2. A Sine wave that changes colour and speeds up based on sound detected
       break;
     case 3 :
-      anim_equalizer();
+      anim_equalizer();                     //3. A colourful Equalizer that incorporates the FastFFT Library functions
       break;
     case 4 :
-      anim_rain();
+      anim_rain();                          //4. Randomly generated rain that falls based on detected sound
       break;
     case 5 :
-      anim_growingBox();
+      anim_growingBox();                    //5. A colourful pattern that has different states based on sound level
       break;
     case 6 :
-      anim_rotatingBox();
+      anim_rotatingBox();                   //6. An animation test showing a dot moving around a box
       break;
     case 7 :
-      anim_fireworks();
+      anim_fireworks();                     //7. Randomly generated fireworks on a night sky backdrop (NOT SOUND BASED)
       break;
     case 8 :
-      anim_cycle();
+      anim_cycle();                         //8. An animation of a Sun/Moon cycle (Sun up/down, then Moon up/down)
       break;
   }
 
@@ -797,23 +803,23 @@ void anim_dancing_man()
 
 void game_pong()
 { 
-  //Serial.println(audio_val, DEC);
+  // -- Models -- //
+  // -- Other models located in Global Variables Area at the top of this file -- //
   pos wall[8] = {{0,7}, {1,7}, {2,7}, {3,7}, {4,7}, {5,7}, {6,7}, {7,7}};
   pos game_over_face[20] = {{0,1}, {0,3}, {0,4}, {0,6}, {1,2}, {1,5}, {2,1}, {2,3}, {2,4}, {2,6}, 
                             {6,1}, {5,1}, {4,1}, {4,2}, {4,3}, {4,4}, {4,5}, {4,6}, {5,6}, {6,6}};
-  //bool game_over = false;
 
-  if(game_over == true)
-  {
+  if(game_over == true)                                                           //If the game has ended and the function has been called again
+  {                                                                               //Reset the global variables that the game uses
     anim_start();
     ball[0].x = (rand() % (6-1 +1) + 1);
     ball[0].y = (rand() % (5-2 +1) + 2);
     ball_direction = (rand() % (4-1 +1) + 1);
     game_over = false;
   }
-  while(digitalRead(BUTTON_PIN) != HIGH && game_over == false)
+  while(digitalRead(BUTTON_PIN) != HIGH && game_over == false)                    //As the loop stays within the function, set an exit condition
   {
-    EVERY_N_MILLIS(5)
+    EVERY_N_MILLIS(5)                                                                    
     {
       // -- Grab the audio value & Shift the board according to the value --//
       audio_val = analogRead(MIC_PIN);
@@ -823,7 +829,6 @@ void game_pong()
         //Check to see if it's not resting on the BOTTOM of X
         if(in_list((pos){7,0}, paddle, 3) == false)
         {
-          //Serial.println("Shift_down");
           shift_down(paddle, 3, 1);
         }
       }
