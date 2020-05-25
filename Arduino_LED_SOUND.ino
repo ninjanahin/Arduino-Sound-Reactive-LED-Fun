@@ -286,40 +286,41 @@ void shift_diagonal(pos posArray[], int numElements, int numShifts, uint8_t dir)
 
 void anim_start()
 {
+  // -- Animation Models -- //
   pos three[13] = {{1,2}, {1,3}, {1,4}, {1,5}, {2,5}, {3,3}, {3,4}, {3,5}, {4,5}, {5,2}, {5,3}, {5,4}, {5,5}};
   pos two[14] = {{1,2}, {1,3}, {1,4}, {1,5}, {2,5}, {3,5}, {3,4}, {3,3}, {3,2}, {4,2}, {5,2}, {5,3}, {5,4}, {5,5}};
   pos one[8] = {{1,3}, {1,4}, {2,4}, {3,4}, {4,4}, {5,4}, {5,3}, {5,5}};
   pos go[19] = {{2,1}, {2,2}, {2,3}, {3,1}, {4,1}, {5,1}, {5,2}, {5,3}, {4,3}, {2,5}, {3,5}, {4,5}, {5,5}, {5,6}, {5,7}, {4,7}, {3,7}, {2,7}, {2,6}};
   pos border[16] = {{0,0}, {0,1}, {0,2}, {0,3}, {0,4}, {0,5}, {0,6}, {0,7}, {7,0}, {7,1}, {7,2}, {7,3}, {7,4}, {7,5}, {7,6}, {7,7}};
 
-  leds_from_struct(border, 16, 64, 255, 100);       // Set a yellow border that persists across all stages of the animation (TOP/BOTTOM ROW)
+  leds_from_struct(border, 16, 64, 255, 100);       //Set a yellow border that persists across all stages of the animation (TOP/BOTTOM ROW)
     
-  leds_from_struct(three, 13, 0, 255, 255);
+  leds_from_struct(three, 13, 0, 255, 255);         //Light the '3' --> Set as RED
+  LEDS.show();                                      
+  delay(1000);
+  leds_from_struct(three, 13, -1, 0, 0);            //Turn off the LEDS that made up the '3'
+  leds_from_struct(two, 14, 0, 255, 255);           //Light the '2' --> Set as RED
   LEDS.show();
   delay(1000);
-  leds_from_struct(three, 13, -1, 0, 0);
-  leds_from_struct(two, 14, 0, 255, 255);
+  leds_from_struct(two, 14, -1, 0, 0);              //Turn off the LEDS that made up the '2'
+  leds_from_struct(one, 8, 0, 255, 255);            //Light the '1' --> Set as RED
   LEDS.show();
   delay(1000);
-  leds_from_struct(two, 14, -1, 0, 0);
-  leds_from_struct(one, 8, 0, 255, 255);
+  leds_from_struct(one, 8, -1, 0, 0);               //Turn off the LEDS that made up the '1'
+  leds_from_struct(go, 19, 160, 255, 255);          //Light the 'GO' --> Set as BLUE
   LEDS.show();
   delay(1000);
-  leds_from_struct(one, 8, -1, 0, 0);
-  leds_from_struct(go, 19, 160, 255, 255);
-  LEDS.show();
-  delay(1000);
-  LEDS.clear();                   
+  LEDS.clear();                                     //Clear all the LEDS (Turn off the LEDS that made up the 'GO')
 }
 
 
 void anim_randPixel()
 {
-      int multiplier;
-      audio_val = analogRead(MIC_PIN);
+      int multiplier;                              //A multiplier that we will use to determine the number of random pixels
+      audio_val = analogRead(MIC_PIN);             //Set the audio value based on the value read in from the microphone
       
-      switch(audio_val)
-      {
+      switch(audio_val)                            //Our switch for determining the multiplier value
+      {                                            //It is based on the audio_value , HIGHER VALUE = HIGHER MULTIPLIER 
         case 0 ... 320:
           multiplier= 0;
           break;
@@ -336,9 +337,9 @@ void anim_randPixel()
           multiplier = 4;
           break;
       }
-      if(multiplier > 0)
-      {
-        uint16_t numPixels = (rand() % ((7-0+1)));
+      if(multiplier > 0)                          //As long as the multiplier isn't 0 (Min. Audio val: 321)
+      {                                           //Set a random number of pixels (0-7 * multiplier), set a random location for each and light as a random colour
+        uint16_t numPixels = (rand() % ((7-0+1))) * multiplier;
 
         for(int i=0; i<numPixels; i++)
         {
@@ -354,12 +355,12 @@ void anim_randPixel()
 
 void anim_wave()
 {
-   //Wave animation
+   // -- Animation Models -- //
    pos wave[8] = {{2,0}, {3,1}, {4,2}, {5,3}, {5,4}, {4,5}, {3,6}, {2,7}};        //Basically a sine wave shape
-   int multiplier = 1;
+   int multiplier = 1;                                                            //A multiplier that we will use to determine the speed of the animation
    
-   audio_val = analogRead(MIC_PIN);
-   switch(audio_val)
+   audio_val = analogRead(MIC_PIN);                                               //Set the audio value based on the value read in from the microphone
+   switch(audio_val)                                                              //Our switch for determining multiplier value, HIGHER VALUE = HIGHER MULTIPLIER
    {
       case 320 ... 340:
         multiplier = 2;
@@ -376,22 +377,22 @@ void anim_wave()
    }
    
    //Every state change --> Change colour --> transition colour
-   shift_right(wave, 8, state);                                               //Shift right by X places based on the current animation state
-   leds_from_struct(wave, 8, global_colour, 255, 127);                        //Once the leds have been shifted -> Set them through the helper function based on global colour
-   leds[XY(wave[state].x, wave[state].y)] = CHSV(0, 0, 255);                  //Set one led to white
+   shift_right(wave, 8, state);                                                   //Shift right by X places based on the current animation state
+   leds_from_struct(wave, 8, global_colour, 255, 127);                            //Once the leds have been shifted -> Set them through the helper function based on global colour
+   leds[XY(wave[state].x, wave[state].y)] = CHSV(0, 0, 255);                      //Set one led to white
    LEDS.show();
-   delay((40/ multiplier));                                                     //Set the speed based on the multiplier --> Louder music, faster moving
-   leds_from_struct(wave, 8, -1, 0, 0);                                       //Reset back to black / Turn off LEDS
+   delay((40/ multiplier));                                                       //Set the speed based on the multiplier --> Louder music, faster moving
+   leds_from_struct(wave, 8, -1, 0, 0);                                           //Reset back to black / Turn off LEDS
    
-   state++;                                                                   //Increment state to control the number of shifts right
-   if(state > 7)                                                              //If this number is greater than 7, then it's looped, so set to 0
+   state++;                                                                       //Increment state to control the number of shifts right
+   if(state > 7)                                                                  //If this number is greater than 7, then it's looped, so set to 0
    {
       state = 0;
    }
    
-   global_colour +=5;                                                         //Increment the global colour to create a rainbow effect
-   if(global_colour > 255)                                                    //If this number is greater than 255, then reset back to 0
-   {
+   global_colour +=5;                                                             //Increment the global colour to create a rainbow effect
+   if(global_colour > 255)                                                        //If this number is greater than 255, then reset back to 0
+   {                                                                              //The colour value for HUE or RGB can only be 0-255
       global_colour = 0;
    }
 }
