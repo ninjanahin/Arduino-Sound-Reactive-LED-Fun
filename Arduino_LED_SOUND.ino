@@ -1,4 +1,3 @@
-//#include <AudioFrequencyMeter.h>
 #include <fix_fft.h>
 #include <FastLED.h>
 
@@ -170,13 +169,16 @@ void leds_from_struct(pos posArray[], int numElements, int hue, int sat, int bri
 
 void shift_up(pos posArray[], int numElements, int numShifts)
 {
-  for(int i=0; i< (numShifts % 8); i++)
+  //Given a POS array most likely containing an animation model,
+  //this function will shift those pixels up (X--) on the LED Matrix board
+  
+  for(int i=0; i< (numShifts % 8); i++)     //There are a maximum of 7 shifts that can be made as that would loop back to the original position
   {
-    for(int j=0; j< numElements; j++)
+    for(int j=0; j< numElements; j++) 
     {
-      posArray[j].x -=1;
-      if(posArray[j].x < 0)
-      {
+      posArray[j].x -=1;                    //Reduce X by 1, this results in a shift up on the LED matrix board.
+      if(posArray[j].x < 0)                 //If X is less than 0 , it is no longer displayed on the board or valid, 
+      {                                     //In this case, shift it to the bottom most position (x=7)
         posArray[j].x = 7;
       }
     }
@@ -185,13 +187,16 @@ void shift_up(pos posArray[], int numElements, int numShifts)
 
 void shift_down(pos posArray[], int numElements, int numShifts)
 {
-  for(int i=0; i< (numShifts % 8); i++)
+  //Given a POS array most likely containing an animation model,
+  //this function will shift those pixels down (X++) on the LED Matrix board
+  
+  for(int i=0; i< (numShifts % 8); i++)     //There are a maximum of 7 shifts that can be made as that would loop back to the original position
   {
     for(int j=0; j< numElements; j++)
     {
-      posArray[j].x +=1;
-      if(posArray[j].x > 7)
-      {
+      posArray[j].x +=1;                    //Increase X by 1, this results in a shift down on the LED matrix board.
+      if(posArray[j].x > 7)                 //If X is greater than 7, it is no longer displayed on the board or valid
+      {                                     //In this case, shift it to the top most position (x=0)
         posArray[j].x = 0;
       }
     }
@@ -200,13 +205,16 @@ void shift_down(pos posArray[], int numElements, int numShifts)
 
 void shift_right(pos posArray[], int numElements, int numShifts)
 {
-  for(int i=0; i< (numShifts % 8); i++)         //There is a maximum of 7 shifts across the board that can be made without repeating
+  //Given a POS array most likely containing an animation model,
+  //this function will shift those pixels right (Y++) on the LED Matrix board
+  
+  for(int i=0; i< (numShifts % 8); i++)     //There are a maximum of 7 shifts that can be made as that would loop back to the original position
   {
     for(int j=0; j< numElements; j++)
     {
-      posArray[j].y +=1;
-      if(posArray[j].y > 7)
-      {
+      posArray[j].y +=1;                    //Increase Y by 1, this results in a shift right on the LED matrix board
+      if(posArray[j].y > 7)                 //If Y is greater than 7, it is no longer displayed on the board or valid
+      {                                     //In this case, shift it to the left most position (y=0)
         posArray[j].y = 0;
       }
     }
@@ -215,13 +223,16 @@ void shift_right(pos posArray[], int numElements, int numShifts)
 
 void shift_left(pos posArray[], int numElements, int numShifts)
 {
-  for(int i=0; i< (numShifts % 8); i++)         //There is a maximum of 7 shifts across the board that can be made without repeating
+  //Given a POS array most likely containing an animation model,
+  //this function will shift those pixels left (Y--) on the LED Matrix board
+  
+  for(int i=0; i< (numShifts % 8); i++)     //There are a maximum of 7 shifts that can be made as that would loop back to the original position
   {
     for(int j=0; j< numElements; j++)
     {
-      posArray[j].y -=1;
-      if(posArray[j].y < 0)
-      {
+      posArray[j].y -=1;                    //Decrease Y by 1, this results in a shift left on the LED matrix board
+      if(posArray[j].y < 0)                 //If Y is less than 0, it is  no longer displayer on the board or valid
+      {                                     //In this case, shift it to the right most position (y=7)
         posArray[j].y = 7;
       }
     }
@@ -264,8 +275,8 @@ void shift_diagonal(pos posArray[], int numElements, int numShifts, uint8_t dir)
 
   for(uint8_t i=0; i< numElements; i++)
   {
-    posArray[i].x += (incrementX * numShifts);
-    posArray[i].y += (incrementY * numShifts);
+    posArray[i].x += (incrementX * numShifts);    //Perform the diagonal shifts (X)
+    posArray[i].y += (incrementY * numShifts);    //Perform the diagonal shifts (Y)
   }
 }
 
