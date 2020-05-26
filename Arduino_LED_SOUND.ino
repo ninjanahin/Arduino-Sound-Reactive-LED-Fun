@@ -400,16 +400,27 @@ void anim_wave()
 void anim_rain()
 {
   bool add_new = false;
-  if(analogRead(MIC_PIN) > 300)
-  {
+  int multiplier = 0;                                                     //A multiplier to determine the number of raindrops to fall
+  
+  if(analogRead(MIC_PIN) > 300)                                           //If a sound above the 300 threshold is heard, create a new raindroplet
+  {                                                                       //after the shifting logic.
     add_new = true;                                                       //Set the add_new_led flag to true so it knows to add a new rain droplet
+    multiplier = 1;                                                       //If it's between 301-340 , add just one droplet
+  }
+  if(analogRead(MIC_PIN) > 340)
+  {
+    multiplier = 2;                                                       //If it's between 341-380 , add two droplets
+  }
+  if(analogRead(MIC_PIN) > 380)
+  {
+    multiplier = 3;                                                       //If it's above 380, add three droplets
   }
 
+  // -- RAINDROP SHIFTING LOGIC -- //
   for(int x =7; x > -1 ; x--)
   {
     for(int y=7 ; y > -1; y--)
     {
-      //SHIFT EXISTING NODES
       if(x == 7)                                                          //If dealing with the last row, just clear the leds
       {
         leds[XY(x,y)] = CRGB::Black;                                      //Turn off the led
@@ -431,20 +442,24 @@ void anim_rain()
           leds[XY(x, y)] = CRGB::Black;
         }
       }
-
-      //ADD NEW NODES
-      if(add_new == true)
-      {
-        int starting_point = (rand() % (7-0+1));                              //Pick a random starting point between 0-7 if sound is detected
-        if(! leds[XY(0, starting_point)] && ! leds[XY(1, starting_point)])    //If there is no LED lit on that particular starting point or the next led down, set the new LED
-        {
-          leds[XY(0, starting_point)] = CHSV(160, 255, 255);                  //Set the starting point LED on the first row
-        }
-        add_new = false;                                                      //Reset add new flag
-      }
     }
   }
 
+  // -- ADD NEW RAINDROPS -- //
+  if(add_new == true)
+  {
+    for(uint8_t i=0; i< multiplier; i++)                                    //Repeat multiplier times to add multiplier chances at a raindrop falling.
+    {
+      int starting_point = (rand() % (7-0+1));                              //Pick a random starting point between 0-7 if sound is detected
+      if(! leds[XY(0, starting_point)] && ! leds[XY(1, starting_point)])    //If there is no LED lit on that particular starting point or the next led down, set the new LED
+      {
+        leds[XY(0, starting_point)] = CHSV(160, 255, 255);                  //Set the starting point LED on the first row
+      }
+    }
+    add_new = false;                                                      //Reset add new flag
+  }
+  
+      
   LEDS.show();
   delay(20);
 }
