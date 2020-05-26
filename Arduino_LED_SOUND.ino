@@ -587,17 +587,20 @@ void anim_fireworks()
 
   /* ------------------------------------------------ */
   /* -------- DETERMINE STARTING VARIABLES ---------- */
-  uint8_t starting_pointX = (rand() % (5-0+1));                                //Set the starting point for the fireworks (X) (max X is 5 so the firework actually goes up)
-  uint8_t starting_pointY = (rand() % (7-0+1));                                //Set the starting point for the fireworks (Y)
-  uint8_t limit = (rand() % (3-1 +1)) + 1;                                     //Set a random limit between 1 and 4 (to determine the fireworks size)
-  uint16_t starting_color = setRandColor();                                    //Set a random starting color
-  uint16_t next_color;                                                         //The next_colour variable which will be used to determine the colour of the next ring in the firework
+  uint8_t starting_pointX = (rand() % (5-0+1));                                 //Set the starting point for the fireworks (X) (max X is 5 so the firework actually goes up)
+  uint8_t starting_pointY = (rand() % (7-0+1));                                 //Set the starting point for the fireworks (Y)
+  uint8_t limit = (rand() % (3-1 +1)) + 1;                                      //Set a random limit between 1 and 4 (to determine the fireworks size)
+  uint16_t starting_color = setRandColor();                                     //Set a random starting color
+  uint16_t next_color;                                                          //The next_colour variable which will be used to determine the colour of the next ring in the firework
 
-  uint8_t multiplier = 1;
-  audio_val = analogRead(MIC_PIN);                                             //Set the audio value based on read in values from the microphone
-  switch(audio_val)                                                            //A multiplier switch based on read in audio_value which will determine delay speed.
+  uint8_t multiplier = 0;
+  audio_val = analogRead(MIC_PIN);                                              //Set the audio value based on read in values from the microphone
+  switch(audio_val)                                                             //A multiplier switch based on read in audio_value which will determine delay speed.
   {
-    case 320 ... 350:
+    case 300 ... 325:
+      multiplier = 1;
+      break;
+    case 326 ... 350:
       multiplier = 2;
       break;
     case 351 ... 420:
@@ -606,118 +609,117 @@ void anim_fireworks()
     case 421 ... 1023:
       multiplier = 4;
       break;
-
-    default: 
-      multiplier = 1;
   }
-
-  /* ------------------------------------------------ */
-  /* -------- Watch the firework shoot up ----------- */
-  for(uint8_t x = 7; x > starting_pointX; x--)
+  if(multiplier > 0)
   {
-    leds[XY(x, starting_pointY)] =  CHSV(0,0,100);                            //For each X value from 7 (the bottom of the grid) to the randomly chosen Pixel
-    LEDS.show();                                                              //Set the colour of the led at (X, Y) to white then change the colour back to what it was before
-    delay(40/multiplier);
-    if(in_list((pos) {x, starting_pointY}, background, 8) == true)            //If the pixel coordinate matches the moon's location, it was part of the moon prior to lighting
+    /* ------------------------------------------------ */
+    /* -------- Watch the firework shoot up ----------- */
+    for(uint8_t x = 7; x > starting_pointX; x--)
     {
-      leds[XY(x, starting_pointY)] = CHSV(209, 18, 64);                       //In that case, set the colour back to the colour of the moon
-    }
-    else                                                                      //If the pixel coordinate isn't part of the moon's location, it was part of the night sky background
-    {
-      leds[XY(x, starting_pointY)] = CRGB(0,0, 128);                          //In that case, set the colour back to the colour of the night sky and dim the brightness back to what it was before.
-      leds[XY(x, starting_pointY)] %= 1;
-    }
-  }
-
-  /* ------------------------------------------------- */
-  /* -------------- Time for the Bang ---------------- */
-  leds[XY(starting_pointX, starting_pointY)] = CHSV(starting_color, 255, 127);//Light the center point of the firework to the randomly chosen starting colour
-  LEDS.show();
-  delay(50/multiplier);
-
-
-  // -- Fireworks exploding logic Variable initialization -- //
-                                                                              // These variables help to keep track of values and help determine what points to light up next                                                                           
-  bool previous_array[8][8];                                                  //Initialize array to store previous values FOR CALCULATION
-  memset(previous_array, 0, 64*sizeof(bool));                                 //Set all values to 0
-  previous_array[starting_pointX][starting_pointY] = true;                    //Set first value to our first pixel location
-
-
-  // -- Fireworks Expanding/Exploding logic -- //
-  for(uint8_t i=0; i<limit ; i++)
-  {
-    bool next_array[8][8];                                                    //Initialize array TO STORE calculated values
-    memset(next_array, 0, 64*sizeof(bool));                                   //Ensure array is blank
-    next_color = starting_color + 60*(i+1);                                   //Determine the next colour based on the current i and the starting colour
-    if( next_color > 255)                                                     //The range of Hue is 0-255, each value represents a different colour
-    {
-      next_color = 0 + (next_color - 255);
-    }
-    
-    //Determine next pixels using PREVIOUS AND NEXT ARRAYS
-    for(uint8_t x=0; x<8; x++)                                                //Using the previous array, calculate what pixels to light next
-    {                                                                         //Check all pixels, if the pixel is adjacent to one in the previous_array
-      for(uint8_t y=0; y<8; y++)                                              //and hasn't already been lit (marked true), light it (mark as true)
-      {                                                                       //and set it to the colour of next_colour
-        if(previous_array[x][y] == true)                                      //Adjacent variables are either (x-1), (x+1), (y-1), (y+1)
-        {                                                                     //As long as they are within the boundaries of the 8x8 grid.
-          if(previous_array[x+1][y] == false &&  (x+1 < 8))
-          {
-            next_array[x+1][y] = true;
-            leds[XY(x+1, y)] = CHSV(next_color, 255, 127);
-          }
-          if(previous_array[x-1][y] == false && (x-1 > -1))
-          {
-            next_array[x-1][y] = true;
-            leds[XY(x-1, y)] = CHSV(next_color, 255, 127);
-          }
-          if(previous_array[x][y+1] == false && (y+1 < 8))
-          {
-            next_array[x][y+1] = true;
-            leds[XY(x, y+1)] = CHSV(next_color, 255, 127);
-          }
-          if(previous_array[x][y-1] == false && (y-1 > -1))
-          {
-            next_array[x][y-1] = true;
-            leds[XY(x, y-1)] = CHSV(next_color, 255, 127);
-          }
-        }
-      }
-    }
-    
-    //Merge next_array into previous array
-    for(uint8_t x=0; x<8; x++)                                                //Add the recently calculated values to the previous_array
-    {                                                                         //so that during the next iteration, the adjacent pixels can once again be calculated
-      for(uint8_t y=0; y<8; y++)                                              //based on comparison with previous_array.
+      leds[XY(x, starting_pointY)] =  CHSV(0,0,100);                            //For each X value from 7 (the bottom of the grid) to the randomly chosen Pixel
+      LEDS.show();                                                              //Set the colour of the led at (X, Y) to white then change the colour back to what it was before
+      delay(40/multiplier);
+      if(in_list((pos) {x, starting_pointY}, background, 8) == true)            //If the pixel coordinate matches the moon's location, it was part of the moon prior to lighting
       {
-        if(next_array[x][y] == true)
-        {
-          previous_array[x][y] = true;
-        }
+        leds[XY(x, starting_pointY)] = CHSV(209, 18, 64);                       //In that case, set the colour back to the colour of the moon
+      }
+      else                                                                      //If the pixel coordinate isn't part of the moon's location, it was part of the night sky background
+      {
+        leds[XY(x, starting_pointY)] = CRGB(0,0, 128);                          //In that case, set the colour back to the colour of the night sky and dim the brightness back to what it was before.
+        leds[XY(x, starting_pointY)] %= 1;
       }
     }
-
-    LEDS.show();                                                              //With all the values set to be lit, turn on the relevant LEDS
-    delay(50/multiplier);                                                     //delay by 50ms (based on multiplier), then repeat the calculation
-  }
   
-  delay(100/multiplier);
-  LEDS.clear();
+    /* ------------------------------------------------- */
+    /* -------------- Time for the Bang ---------------- */
+    leds[XY(starting_pointX, starting_pointY)] = CHSV(starting_color, 255, 127);//Light the center point of the firework to the randomly chosen starting colour
+    LEDS.show();
+    delay(50/multiplier);
+  
+  
+    // -- Fireworks exploding logic Variable initialization -- //
+                                                                                // These variables help to keep track of values and help determine what points to light up next                                                                           
+    bool previous_array[8][8];                                                  //Initialize array to store previous values FOR CALCULATION
+    memset(previous_array, 0, 64*sizeof(bool));                                 //Set all values to 0
+    previous_array[starting_pointX][starting_pointY] = true;                    //Set first value to our first pixel location
+  
+  
+    // -- Fireworks Expanding/Exploding logic -- //
+    for(uint8_t i=0; i<limit ; i++)
+    {
+      bool next_array[8][8];                                                    //Initialize array TO STORE calculated values
+      memset(next_array, 0, 64*sizeof(bool));                                   //Ensure array is blank
+      next_color = starting_color + 60*(i+1);                                   //Determine the next colour based on the current i and the starting colour
+      if( next_color > 255)                                                     //The range of Hue is 0-255, each value represents a different colour
+      {
+        next_color = 0 + (next_color - 255);
+      }
+      
+      //Determine next pixels using PREVIOUS AND NEXT ARRAYS
+      for(uint8_t x=0; x<8; x++)                                                //Using the previous array, calculate what pixels to light next
+      {                                                                         //Check all pixels, if the pixel is adjacent to one in the previous_array
+        for(uint8_t y=0; y<8; y++)                                              //and hasn't already been lit (marked true), light it (mark as true)
+        {                                                                       //and set it to the colour of next_colour
+          if(previous_array[x][y] == true)                                      //Adjacent variables are either (x-1), (x+1), (y-1), (y+1)
+          {                                                                     //As long as they are within the boundaries of the 8x8 grid.
+            if(previous_array[x+1][y] == false &&  (x+1 < 8))
+            {
+              next_array[x+1][y] = true;
+              leds[XY(x+1, y)] = CHSV(next_color, 255, 127);
+            }
+            if(previous_array[x-1][y] == false && (x-1 > -1))
+            {
+              next_array[x-1][y] = true;
+              leds[XY(x-1, y)] = CHSV(next_color, 255, 127);
+            }
+            if(previous_array[x][y+1] == false && (y+1 < 8))
+            {
+              next_array[x][y+1] = true;
+              leds[XY(x, y+1)] = CHSV(next_color, 255, 127);
+            }
+            if(previous_array[x][y-1] == false && (y-1 > -1))
+            {
+              next_array[x][y-1] = true;
+              leds[XY(x, y-1)] = CHSV(next_color, 255, 127);
+            }
+          }
+        }
+      }
+      
+      //Merge next_array into previous array
+      for(uint8_t x=0; x<8; x++)                                                //Add the recently calculated values to the previous_array
+      {                                                                         //so that during the next iteration, the adjacent pixels can once again be calculated
+        for(uint8_t y=0; y<8; y++)                                              //based on comparison with previous_array.
+        {
+          if(next_array[x][y] == true)
+          {
+            previous_array[x][y] = true;
+          }
+        }
+      }
+  
+      LEDS.show();                                                              //With all the values set to be lit, turn on the relevant LEDS
+      delay(50/multiplier);                                                     //delay by 50ms (based on multiplier), then repeat the calculation
+    }
+    
+    delay(100/multiplier);
+    LEDS.clear();
+  }
 }
 
 void anim_daytime()
 {
-  // --- Models --- //
-  pos sun[4] = {{1,1}, {1,2}, {2,1}, {2,2}};                                //The sun body
-  pos sun_1[8] = {{3,1}, {0,2}, {2,0}, {1,3}, {1,0}, {2,3}, {3,2}, {0,1}};  //The points for the sun ray animation
-  pos tree_1[6] = {{2,5}, {2,6}, {3,4}, {3,5}, {3,6}, {3,7}};               //The leaves of the tree
-  pos tree_2[8] = {{4,5}, {4,6}, {5,5}, {5,6}, {6,4}, {6,5}, {6,6}, {6,7}}; //The base of the tree
+  // --- Animation Models --- //
+  pos sun[4] = {{1,1}, {1,2}, {2,1}, {2,2}};                                  //The sun body
+  pos sun_1[8] = {{3,1}, {0,2}, {2,0}, {1,3}, {1,0}, {2,3}, {3,2}, {0,1}};    //The points for the sun ray animation
+  pos tree_1[6] = {{2,5}, {2,6}, {3,4}, {3,5}, {3,6}, {3,7}};                 //The leaves of the tree
+  pos tree_2[8] = {{4,5}, {4,6}, {5,5}, {5,6}, {6,4}, {6,5}, {6,6}, {6,7}};   //The base of the tree
 
   // --- Setting Models --- //
-  leds_from_struct(sun, 4,  64, 200, 100);                                  //Set the Colour of the sun
-  leds_from_struct(sun_1, 8, 64, 200, 90);                                  //Set the colour of the sun rays (non-animated part)
-  leds_from_struct(tree_1, 6, 96, 255, 200);                                //Set the colour of the leaves
-  leds_from_struct(tree_2, 8, 30, 255, 80);                                //Set the colour of the Tree base
+  leds_from_struct(sun, 4,  64, 200, 100);                                    //Set the Colour of the sun
+  leds_from_struct(sun_1, 8, 64, 200, 90);                                    //Set the colour of the sun rays (non-animated part)
+  leds_from_struct(tree_1, 6, 96, 255, 200);                                  //Set the colour of the leaves
+  leds_from_struct(tree_2, 8, 30, 255, 80);                                   //Set the colour of the Tree base
   
   // --- Setting background --- //
   for(uint8_t x=0; x<8; x++)
@@ -729,10 +731,10 @@ void anim_daytime()
         leds[XY(x,y)] = CRGB::LawnGreen;                                       //Set the grass
         leds[XY(x,y)] %= 10;                                                   //Fade the colour immensely
       }
-      else if(leds[XY(x,y)].r == 0 && leds[XY(x, y)].g == 0 && leds[XY(x, y)].b == 0)    //Check to see if the pixel is on (black)
-      {
-        leds[XY(x,y)] = CRGB::DeepSkyBlue;                                         //Set the colour of the sky
-        leds[XY(x,y)] %= 10;                                                    //Fade the colour immensely
+      else if(leds[XY(x,y)].r == 0 && leds[XY(x, y)].g == 0 && leds[XY(x, y)].b == 0)    
+      {                                                                        //Check to see if the pixel is on (black)
+        leds[XY(x,y)] = CRGB::DeepSkyBlue;                                     //Set the colour of the sky
+        leds[XY(x,y)] %= 10;                                                   //Fade the colour immensely
       }
     }
   }
@@ -742,7 +744,7 @@ void anim_daytime()
   {
     state = 0;                                                                //Check that the state isn't greater than 3 (from other modes, or incrementing)
   }
-  leds[XY(sun_1[state*2].x, sun_1[state*2].y)] = CRGB::Gold;                //Set the colour of two of the points within the sun's animation points based on the current state
+  leds[XY(sun_1[state*2].x, sun_1[state*2].y)] = CRGB::Gold;                  //Set the colour of two of the points within the sun's animation points based on the current state
   leds[XY(sun_1[state*2 +1].x, sun_1[state*2 + 1].y)] = CRGB::Gold;
   state++;                                                                    //Increment the state so the colour cycles around and animates
   
@@ -753,69 +755,65 @@ void anim_daytime()
 
 void anim_cycle()
 {
-  //  --- Models --- //
-  pos sun[4] = {{7,7}, {7,8}, {8,7}, {8,8}};                                    //Start the animation in the bottom left corner only showing one pixel
+  //  --- Animation Models --- //
+  pos sun[4] = {{7,7}, {7,8}, {8,7}, {8,8}};                                  //Start the animation in the bottom left corner only showing one pixel
   pos moon[8] = {{7,7}, {7,8}, {8,7}, {8,8}, {9,8}, {9,9}, {6,8}, {6,9}};     //Rely on the leds_from_struct logic to not turn on any LEDS outside 8x8 grid parameters
-
-  CRGB colours[2] = {CRGB::Gold, CRGB::Silver};
-
-  Serial.println("Cycle entered");
   
   // --- Logic --- //
   
-  if(state > 19)      //There are 20 states total -> 9 for Sun/Moon each and 1 each as a gap
-  {
+  if(state > 19)                                                              //There are 20 states total -> 9 for Sun/Moon each and 1 each as a gap
+  {                                                                           //If it exceeds these 20 states, reset back to the first state
     state = 0;
     
   }
 
-  if(state == 0 || state == 10)
+  if(state == 0 || state == 10)                                               //On the first and middle state, show only the background
   {
     //Show background only
   }
-  else if(state > 0 && state < 6)
+  else if(state > 0 && state < 6)                                             //On state 1-5 Shift the sun upwards
   {
-    shift_diagonal(sun, 4, state-1, 3);           //Shift the sun upwards
-    leds_from_struct(sun, 4, 64, 255, 127);     //Colour the  sun
-    for(uint8_t i=0; i<64; i++)
-    {
+    shift_diagonal(sun, 4, state-1, 3);                                       //Shift the sun upwards
+    leds_from_struct(sun, 4, 64, 255, 127);                                   //Colour the  sun
+    for(uint8_t i=0; i<64; i++)                                               //For each of the LEDS, set the brightness based on the current STATE value
+    {                                                                         //The higher the sun, the brighter it becomes
       if(! leds[i])
       {
         leds[i] = CHSV(160, 255, 20+ state*30);
       }
     }
   }
-  else if(state > 5 && state < 10)
+  else if(state > 5 && state < 10)                                            //On state 6-9 Shift the sun Upwards then downwards based on the current state
   {
-    shift_diagonal(sun, 4, 4, 3);               //Shift the sun upwards first
-    shift_diagonal(sun, 4, (state-1)-4, 4);     //Then shift the sun downwards
-    leds_from_struct(sun, 4, 64, 255, 127);     //Colour the sun
-    for(uint8_t i=0; i<64; i++)
-    {
+    shift_diagonal(sun, 4, 4, 3);                                             //Shift the sun upwards first
+    shift_diagonal(sun, 4, (state-1)-4, 4);                                   //Then shift the sun downwards
+    leds_from_struct(sun, 4, 64, 255, 127);                                   //Colour the sun
+    for(uint8_t i=0; i<64; i++)                                               //For each of the LEDS, set the brightness based on the current STATE value
+    {                                                                         //The higher the sun, the brighter it becomes
       if(! leds[i])
       {
         leds[i] = CHSV(160, 255, 170 - (state-4)*30);
       }
     }
   }
-  else if(state > 10 && state < 16)
+  else if(state > 10 && state < 16)                                           //On state 11-15 Shift the moon upwards based on the current state
   {
-    shift_diagonal(moon, 8, (state-11), 3);           //Shift the moon upwards
-    leds_from_struct(moon, 8, 0, 0, 127);       //Colour the moon
-    for(uint8_t i=0; i<64; i++)
+    shift_diagonal(moon, 8, (state-11), 3);                                   //Shift the moon upwards
+    leds_from_struct(moon, 8, 0, 0, 127);                                     //Colour the moon
+    for(uint8_t i=0; i<64; i++)                                               //For each of the LEDS, set the colour and dimmness of the night sky
     {
       if(! leds[i])
       {
         leds[i] = CHSV(160, 255, 20);
       }
     }
-  }
-  else if(state > 15 && state < 20)
+  }               
+  else if(state > 15 && state < 20)                                           //On state 16-19 Shift the moon upwards then downwards base don the current state
   {
-    shift_diagonal(moon, 8, 4, 3);               //Shift the moon upwards first
-    shift_diagonal(moon, 8, (state-11)-4, 4);     //Then shift the moon downwards
-    leds_from_struct(moon, 8, 0, 0, 127);       //Colour the moon
-    for(uint8_t i=0; i<64; i++)
+    shift_diagonal(moon, 8, 4, 3);                                            //Shift the moon upwards first
+    shift_diagonal(moon, 8, (state-11)-4, 4);                                 //Then shift the moon downwards
+    leds_from_struct(moon, 8, 0, 0, 127);                                     //Colour the moon
+    for(uint8_t i=0; i<64; i++)                                               //For each of the LEDS, set the colour and dimmness of the night sky
     {
       if(! leds[i])
       {
@@ -827,7 +825,7 @@ void anim_cycle()
   LEDS.show();
   delay(100);
   LEDS.clear();
-  state++;  
+  state++;                                                                    //After displaying the LEDS and clearing them, increment the state so the next stage of the animation can occur  
 }
 
 void anim_dancing_man()
@@ -842,7 +840,7 @@ void anim_dancing_man()
 
 void game_pong()
 { 
-  // -- Models -- //
+  // -- Animation Models -- //
   // -- Other models located in Global Variables Area at the top of this file -- //
   pos wall[8] = {{0,7}, {1,7}, {2,7}, {3,7}, {4,7}, {5,7}, {6,7}, {7,7}};
   pos game_over_face[20] = {{0,1}, {0,3}, {0,4}, {0,6}, {1,2}, {1,5}, {2,1}, {2,3}, {2,4}, {2,6}, 
@@ -858,52 +856,50 @@ void game_pong()
   }
   while(digitalRead(BUTTON_PIN) != HIGH && game_over == false)                    //As the loop stays within the function, set an exit condition
   {
-    EVERY_N_MILLIS(5)                                                                    
-    {
-      // -- Grab the audio value & Shift the board according to the value --//
+    EVERY_N_MILLIS(5)                                                             //Every 5 milliseconds        
+    {                                                                             //Grab the audio value & Shift the paddle according to the value
       audio_val = analogRead(MIC_PIN);
       
-      if(audio_val > 310 && audio_val < 330)
-      {
-        //Check to see if it's not resting on the BOTTOM of X
-        if(in_list((pos){7,0}, paddle, 3) == false)
+      if(audio_val > 310 && audio_val < 330)                                      //If the audio value is between 311 and 329, move the paddle down
+      {                                                                           //As long as the paddle is not resting on the BOTTOM of X          
+                                                                                  
+        if(in_list((pos){7,0}, paddle, 3) == false)                               //Check if (7,0) [the bottom] doesn't exist in the paddles position variables
         {
-          shift_down(paddle, 3, 1);
+          shift_down(paddle, 3, 1);                                               //If it isn't, then it's not at the bottom, so shift down 1 space
         }
       }
-      else if(audio_val > 350)
-      {
+      else if(audio_val > 350)                                                    //If the audio value is greater than 350, shift the paddle up
+      {                                                                           //As long as the paddle isn't sitting at the TOP of X 
         //Check to see if it's not resting on the TOP of X
-        if(in_list((pos){0,0}, paddle, 3) == false)
-        {
-          //Serial.println("Shift_up");
-          shift_up(paddle, 3, 1);
+        if(in_list((pos){0,0}, paddle, 3) == false)                               //Check if (0,0) doesn't exist in the paddles position variables
+        {                                      
+          shift_up(paddle, 3, 1);                                                 //If it doesn't exist, it isn't sitting at the TOP, so shift up 1 space
         }
       }
 
       // -- Light the corresponding models based on their calculated positions -- //
-      leds_from_struct(paddle, 3, 100, 255, 255);
-      leds_from_struct(wall, 8, 100, 255, 255);
-      leds_from_struct(ball, 1, 100, 255, 255);
+      leds_from_struct(paddle, 3, 100, 255, 255);                                 //Set the lights for the Paddle
+      leds_from_struct(wall, 8, 100, 255, 255);                                   //Set the lights for the Wall
+      leds_from_struct(ball, 1, 100, 255, 255);                                   //Set the lights for the Ball
   
-      LEDS.show();
-      LEDS.clear();
+      LEDS.show();                                                                //Turn on the LEDS for all SET leds
+      LEDS.clear();                                                               //Clear lights for next iteration
     }
     EVERY_N_MILLIS(200)
     {
       // -- IF THE BALL HITS A WALL --> CHANGE THE BALL DIRECTION -- //
       
-      if(ball[0].y == 1 && (in_list((pos) {ball[0].x, 0}, paddle, 3) == false))
-      {
-        game_over = true;
+      if(ball[0].y == 1 && (in_list((pos) {ball[0].x, 0}, paddle, 3) == false))   //This logic basically determines which direction the ball will bounce once a ball hits a wall
+      {                                                                           //Firstly, if the ball reaches Y=0, that means it didn't bounce off the Paddle and thus it's game over.
+        game_over = true;                           
       }
       else if(ball[0].y == 6 && ball[0].x ==0 || ball[0].y == 6 & ball[0].x == 7 || ball[0].y == 1 && ball[0].x == 0 || ball[0].y == 1 && ball[0].x == 7)
       {
-        switch(ball_direction)
-        {
-          case 1:
-            ball_direction = 4;
-            break;
+        switch(ball_direction)                                                    //Here it checks to see if the ball landed in the corner against the wall or the paddle
+        {                                                                         //For example, the paddle is one pixel wide, thus if the ball bounces off the paddle, it will be
+          case 1:                                                                 //in position Y=1, if it's in X=0, Y=1, then it's in the bottom corner
+            ball_direction = 4;                                                   //The outgoing direction of the ball then would be the inverse direction of the incoming direction
+            break;                                                                //That's what this switch statement determines. (The outgoing direction)
           case 2:
             ball_direction = 3;
             break;
@@ -915,9 +911,9 @@ void game_pong()
             break;
         }
       }
-      else if(ball[0].y == 6 || ball[0].y==1)
-      {
-        switch(ball_direction)
+      else if(ball[0].y == 6 || ball[0].y==1)                                     //This switch statement is for when the ball hits the PADDLE or the WALL and is not perfectly in a corner
+      {                                                                           //This would result in the ball being deflected rather than being sent in the opposite direction
+        switch(ball_direction)                                                    //That's what this switch statement determines. (The outgoing direction)
         {
           case 1:
             ball_direction = 3;
@@ -936,9 +932,9 @@ void game_pong()
             break;
         }
       }
-      else if(ball[0].x == 0 || ball[0].x == 7)
-      {
-        switch(ball_direction)
+      else if(ball[0].x == 0 || ball[0].x == 7)                                   //This switch statement is for when the ball hits the top or bottom (THE SIDES) of the field
+      {                                                                           //The ball would be deflected but still in a forward moving direction 
+        switch(ball_direction)                                                    //That's what this switch statement determines. (The outgoing direction)
         {
           case 1: 
             ball_direction = 2;
@@ -956,18 +952,16 @@ void game_pong()
       }
       
       // -- SHIFT THE BALL BASED ON BALL DIRECTION -- //
-      shift_diagonal(ball, 1, 1, ball_direction);
+      shift_diagonal(ball, 1, 1, ball_direction);                                 //Once the direction has been determined, move the ball 1 space to it's next location
     }
   }
 
   if(game_over == true)
-  {
-    // -- Display game over -- //
-    leds_from_struct(game_over_face, 20, 0, 255, 127);
-    LEDS.show();
-    delay(2000);
-    LEDS.clear();
-    //break;
+  {                                                                               //If the Ball reaches Y=0, then game_over will become true
+    leds_from_struct(game_over_face, 20, 0, 255, 127);                            //Set the Game over screen
+    LEDS.show();                                                                  //Show the Game over screen
+    delay(2000);                                                                  //Wait 2 seconds
+    LEDS.clear();                                                                 //Clear and reset
   }
   
 }
