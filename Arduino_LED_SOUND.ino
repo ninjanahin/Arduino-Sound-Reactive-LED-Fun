@@ -531,19 +531,15 @@ void anim_growingBox()
 
 void anim_rotatingBox()
 {
-  //Set Animation variables
+  // -- Animation Models -- //
   pos center[4] =  {{3, 3},{3,4},{4,3}, {4,4}};
   pos s1[4] =  {{2,2}, {2,5},{5,2}, {5,5}}; 
   pos s2[4] = {{1,3}, {3,6}, {6,4}, {4,1}};
   pos s3[4] = {{1,4}, {4,6}, {6,3}, {3,1}};
-
-  //pos s1_1{{2,2}, {2,5},{5,2}, {5,5}};
-  //pos s2_1{{2,2}, {2,5},{5,2}, {5,5}};
-  //pos s3_1{{2,2}, {2,5},{5,2}, {5,5}};
   
-  audio_val = analogRead(MIC_PIN);
+  audio_val = analogRead(MIC_PIN);                  //Read in the audio level from the microphone
 
-  leds_from_struct(center, 4, 96, 255, 127);        //Light up the center box first with a red colour
+  leds_from_struct(center, 4, 96, 255, 127);        //Light up the center box first with a green colour
   
   if(audio_val > 300)                               //If the Audio value is above 300, then move between animation states
   {                                               
@@ -554,11 +550,11 @@ void anim_rotatingBox()
     }
   }
   
-  switch(state)
-  {
-    case 1:
-      leds_from_struct(s1, 4, 64, 255, 127);        //The different animation states -> The colour stays the same and the saturation changes
-      break;                                        //to give it a blinking effect.
+  switch(state)                                     //As the models change based on the state, it creates the animation effect
+  {                                                 //The different models provide the location of the pixels
+    case 1:                                         //The different variables passed through to leds_from_struct determine Colour/Saturation and brightness
+      leds_from_struct(s1, 4, 64, 255, 127);        //The colour stays the same and the saturation changes to give off a blinking effect.
+      break;                                        
     case 2:
       leds_from_struct(s2, 4, 64, 192, 127);
       break;
@@ -577,13 +573,13 @@ void anim_fireworks()
   /* ------------------------------------------------- */
   /* ------------Setting the Stage-------------------- */
   pos background[8] ={{0,1}, {0,2}, {1,0}, {1,1}, {2,0}, {2,1}, {3,1}, {3,2}};   //A picture of a moon
-  leds_from_struct(background, 8, 209, 18, 64);             //Set the LEDS for the Moon
+  leds_from_struct(background, 8, 209, 18, 64);                                  //Set the LEDS for the Moon
 
   for(uint8_t i=0; i<NUM_LEDS; i++)
   {
     if(leds[i] == CRGB(0,0,0))
     {
-      leds[i] = CRGB(0,0, 128);                                 //For the other LEDS that are off, turn it into the night sky
+      leds[i] = CRGB(0,0, 128);                                                 //For the other LEDS that are off, turn it into the night sky
       leds[i] %= 1;
     }
   }
@@ -591,65 +587,80 @@ void anim_fireworks()
 
   /* ------------------------------------------------ */
   /* -------- DETERMINE STARTING VARIABLES ---------- */
-  uint8_t starting_pointX = (rand() % (7-0+1));           //Set the starting point for the firworks
-  uint8_t starting_pointY = (rand() % (7-0+1));
-  uint8_t limit = (rand() % (3-1 +1)) + 1;               //Set a random limit between 1 and 4 (to determine the fireworks size)
-  uint16_t starting_color = setRandColor();                //Set a random starting color
-  uint16_t next_color;
+  uint8_t starting_pointX = (rand() % (5-0+1));                                //Set the starting point for the fireworks (X) (max X is 5 so the firework actually goes up)
+  uint8_t starting_pointY = (rand() % (7-0+1));                                //Set the starting point for the fireworks (Y)
+  uint8_t limit = (rand() % (3-1 +1)) + 1;                                     //Set a random limit between 1 and 4 (to determine the fireworks size)
+  uint16_t starting_color = setRandColor();                                    //Set a random starting color
+  uint16_t next_color;                                                         //The next_colour variable which will be used to determine the colour of the next ring in the firework
 
+  uint8_t multiplier = 1;
+  audio_val = analogRead(MIC_PIN);                                             //Set the audio value based on read in values from the microphone
+  switch(audio_val)                                                            //A multiplier switch based on read in audio_value which will determine delay speed.
+  {
+    case 320 ... 350:
+      multiplier = 2;
+      break;
+    case 351 ... 420:
+      multiplier = 3;
+      break;
+    case 421 ... 1023:
+      multiplier = 4;
+      break;
+
+    default: 
+      multiplier = 1;
+  }
 
   /* ------------------------------------------------ */
   /* -------- Watch the firework shoot up ----------- */
   for(uint8_t x = 7; x > starting_pointX; x--)
   {
-    leds[XY(x, starting_pointY)] =  CHSV(0,0,100);
-    LEDS.show();
-    delay(40);
-    if(in_list((pos) {x, starting_pointY}, background, 8) == true)
+    leds[XY(x, starting_pointY)] =  CHSV(0,0,100);                            //For each X value from 7 (the bottom of the grid) to the randomly chosen Pixel
+    LEDS.show();                                                              //Set the colour of the led at (X, Y) to white then change the colour back to what it was before
+    delay(40/multiplier);
+    if(in_list((pos) {x, starting_pointY}, background, 8) == true)            //If the pixel coordinate matches the moon's location, it was part of the moon prior to lighting
     {
-      leds[XY(x, starting_pointY)] = CHSV(209, 18, 64);   //If the pixel was part of the moon, set the color of the moon
+      leds[XY(x, starting_pointY)] = CHSV(209, 18, 64);                       //In that case, set the colour back to the colour of the moon
     }
-    else
+    else                                                                      //If the pixel coordinate isn't part of the moon's location, it was part of the night sky background
     {
-      leds[XY(x, starting_pointY)] = CRGB(0,0, 128);   //If the pixel wasn't part of the moon, set it back to the night sky and dim the colour back
+      leds[XY(x, starting_pointY)] = CRGB(0,0, 128);                          //In that case, set the colour back to the colour of the night sky and dim the brightness back to what it was before.
       leds[XY(x, starting_pointY)] %= 1;
     }
   }
 
   /* ------------------------------------------------- */
   /* -------------- Time for the Bang ---------------- */
-  Serial.println("Fireworks function entered");
-  leds[XY(starting_pointX, starting_pointY)] = CHSV(starting_color, 255, 127);
+  leds[XY(starting_pointX, starting_pointY)] = CHSV(starting_color, 255, 127);//Light the center point of the firework to the randomly chosen starting colour
   LEDS.show();
-  delay(50);
-
-  Serial.println("->First LED displayed");
-  Serial.println("-->Entering For Loop");
-  //Set a 2d array for storing + keeping track of values
-  
-  bool previous_array[8][8];                                //Initialize array to store previous values FOR CALCULATION
-  memset(previous_array, 0, 64*sizeof(bool));               //Set all values to 0
-  previous_array[starting_pointX][starting_pointY] = true;  //Set first value to our first pixel location
+  delay(50/multiplier);
 
 
-  //TEST AREA
+  // -- Fireworks exploding logic Variable initialization -- //
+                                                                              // These variables help to keep track of values and help determine what points to light up next                                                                           
+  bool previous_array[8][8];                                                  //Initialize array to store previous values FOR CALCULATION
+  memset(previous_array, 0, 64*sizeof(bool));                                 //Set all values to 0
+  previous_array[starting_pointX][starting_pointY] = true;                    //Set first value to our first pixel location
+
+
+  // -- Fireworks Expanding/Exploding logic -- //
   for(uint8_t i=0; i<limit ; i++)
   {
-    bool next_array[8][8];                      //Initialize array TO STORE calculated values
-    memset(next_array, 0, 64*sizeof(bool));     //Ensure array is blank
-    next_color = starting_color + 60*(i+1);
-    if( next_color > 255)
+    bool next_array[8][8];                                                    //Initialize array TO STORE calculated values
+    memset(next_array, 0, 64*sizeof(bool));                                   //Ensure array is blank
+    next_color = starting_color + 60*(i+1);                                   //Determine the next colour based on the current i and the starting colour
+    if( next_color > 255)                                                     //The range of Hue is 0-255, each value represents a different colour
     {
       next_color = 0 + (next_color - 255);
     }
     
     //Determine next pixels using PREVIOUS AND NEXT ARRAYS
-    for(uint8_t x=0; x<8; x++)
-    {
-      for(uint8_t y=0; y<8; y++)
-      {
-        if(previous_array[x][y] == true)
-        {
+    for(uint8_t x=0; x<8; x++)                                                //Using the previous array, calculate what pixels to light next
+    {                                                                         //Check all pixels, if the pixel is adjacent to one in the previous_array
+      for(uint8_t y=0; y<8; y++)                                              //and hasn't already been lit (marked true), light it (mark as true)
+      {                                                                       //and set it to the colour of next_colour
+        if(previous_array[x][y] == true)                                      //Adjacent variables are either (x-1), (x+1), (y-1), (y+1)
+        {                                                                     //As long as they are within the boundaries of the 8x8 grid.
           if(previous_array[x+1][y] == false &&  (x+1 < 8))
           {
             next_array[x+1][y] = true;
@@ -673,10 +684,11 @@ void anim_fireworks()
         }
       }
     }
+    
     //Merge next_array into previous array
-    for(uint8_t x=0; x<8; x++)
-    {
-      for(uint8_t y=0; y<8; y++)
+    for(uint8_t x=0; x<8; x++)                                                //Add the recently calculated values to the previous_array
+    {                                                                         //so that during the next iteration, the adjacent pixels can once again be calculated
+      for(uint8_t y=0; y<8; y++)                                              //based on comparison with previous_array.
       {
         if(next_array[x][y] == true)
         {
@@ -685,11 +697,11 @@ void anim_fireworks()
       }
     }
 
-    LEDS.show();
-    delay(50);
+    LEDS.show();                                                              //With all the values set to be lit, turn on the relevant LEDS
+    delay(50/multiplier);                                                     //delay by 50ms (based on multiplier), then repeat the calculation
   }
   
-  delay(500);
+  delay(100/multiplier);
   LEDS.clear();
 }
 
