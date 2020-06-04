@@ -36,6 +36,12 @@ typedef struct{ uint8_t x; uint8_t y; } pos;   //To contain co-ordinates for pix
 uint16_t state = 0;                            //Animation state --> If it increments , the position variables used are likely to change too to create an animation
 uint16_t global_colour = 0;                    //In some cases, it may be useful to have a global colour instead of setting it manually everytime
 
+//-- Wave Animation 2 variables --//
+pos wave2[8] = {{4,0}, {4,1}, {4,2}, {4,3}, {4,4}, {4,5}, {4,6}, {4,7}};   //The wave Animation model
+uint8_t wave_dir = 1;                         //The direction of the foremost pixel currently being calculated.
+int wave_height = 0;                          //The max height calculated from the upwards direction part of the Sine Wave 
+int amplitude = 0;                            //The current amplitude (from X=5) of the foremost pixel [Y=7] --> The last pixel in the WAVE model ^
+uint8_t wave_audio_level = 0;                 //A value of 0-3 determining whether or not the foremost pixel should move further up based on volume.  
 
 //-- Global Pong Game variables --//
 pos paddle[3] = {{7,0}, {6,0}, {5,0}};        //The position struct containing the starting X and Y points for the paddle
@@ -54,7 +60,7 @@ void setup() {
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS);     //FastLED Setup (Using WS812 5050 RGB LED'S)
   Serial.begin(9600);                                                   //Serial Output Setup (For debugging)
 
-  anim_start();                                                         //Introductory Animation --> See anim_start() in Animation function area
+  //anim_start();                                                         //Introductory Animation --> See anim_start() in Animation function area
 }
 
 void loop() {
@@ -69,7 +75,7 @@ void loop() {
     global_colour = 0;                      //Reset Global Colour variable for animations
     LEDS.clear();                           //Clear the LEDS from the previous mode
     
-    if(programMode > 8)                     //If the program mode clicks past 7, reset back to the first 
+    if(programMode > 11)                     //If the program mode clicks past 7, reset back to the first 
     {
       programMode= 1;
     }
@@ -83,25 +89,34 @@ void loop() {
       anim_randPixel();                     //1. Randomly generated coloured Pixels based on sound detection
       break;
     case 2 :
-      anim_wave();                          //2. A Sine wave that changes colour and speeds up based on sound detected
+      anim_wave1();                         //2. A Sine wave that changes colour and speeds up based on sound detected
       break;
     case 3 :
-      anim_equalizer();                     //3. A colourful Equalizer that incorporates the FastFFT Library functions
+      anim_wave2();                         //3. An variable wave based on information from a the presetFFT function (Just one band)
       break;
     case 4 :
-      anim_rain();                          //4. Randomly generated rain that falls based on detected sound
+      anim_spike();                         //4. A horizontal voice spike that moves from the center to the outer edge , based on presetFFT(Just one band)
       break;
     case 5 :
-      anim_growingBox();                    //5. A colourful pattern that has different states based on sound level
+      anim_equalizer();                     //5. A colourful Equalizer that incorporates the FastFFT Library functions
       break;
     case 6 :
-      anim_rotatingBox();                   //6. An animation test showing a dot moving around a box
+      anim_rain();                          //6. Randomly generated rain that falls based on detected sound
       break;
     case 7 :
-      anim_fireworks();                     //7. Randomly generated fireworks on a night sky backdrop (NOT SOUND BASED)
+      anim_growingBox();                    //7. A colourful pattern that has different states based on sound level
       break;
     case 8 :
-      anim_cycle();                         //8. An animation of a Sun/Moon cycle (Sun up/down, then Moon up/down)
+      anim_rotatingBox();                   //8. An animation test showing a dot moving around a box
+      break;
+    case 9 :
+      anim_fireworks();                     //9. Randomly generated fireworks on a night sky backdrop (NOT SOUND BASED)
+      break;
+    case 10 :
+      anim_cycle();                         //10. An animation of a Sun/Moon cycle (Sun up/down, then Moon up/down)
+      break;
+    case 11 :
+      game_pong();                          //11. A simple game of pong where the paddle moves based 
       break;
   }
 
@@ -118,6 +133,18 @@ uint16_t setRandColor()
   //As C doesn't have a ranged rand value, we must take the approach below
   
   return (rand() % (255-0 +1) + 0);
+}
+
+uint16_t incrementGlobalColour(uint8_t increment=5)
+{
+  //Increments the global colour by a given increment with the default being 5 (If no import is given)
+  //Global Colour has is meant to be used in conjunction with the FastLED CHSV value, so it's range is 0-255
+  //If it goes over this value, loop it back around.
+  global_colour +=5;
+  if(global_colour > 255)
+  {
+    global_colour = 0 + (global_colour - 255);  
+  }
 }
 
 uint16_t XY( int x, int y)
@@ -145,11 +172,13 @@ bool in_list(pos xy, pos list[], int numElements)
   return found;
 }
 
-void leds_from_struct(pos posArray[], int numElements, int hue, int sat, int bright)
+void leds_from_struct(pos posArray[], int numElements, int hue, int sat, int bright, int rgb= false)
 {
   //A function for lighting up LEDS using an array of POS struct coordinates {int x, int y}
   //The Hue, Saturation and Brightness values are used to set the LED to the desired state
   //If the Hue is -1 , it will turn off the given LED (Set it to black)
+  //If RGB is set to true (optional variable with false by default), It will use the
+  //Hue, Sat and Bright values as RGB values respectively.
   
   for(int i=0; i< numElements; i++)
   {
@@ -157,7 +186,14 @@ void leds_from_struct(pos posArray[], int numElements, int hue, int sat, int bri
     {
       if(hue != -1)
       {
-        leds[XY(posArray[i].x, posArray[i].y)] = CHSV(hue, sat, bright);
+        if(rgb == true)
+        {
+          leds[XY(posArray[i].x, posArray[i].y)] = CRGB(hue, sat, bright);
+        }
+        else
+        {
+          leds[XY(posArray[i].x, posArray[i].y)] = CHSV(hue, sat, bright);
+        }
       }
       else
       {
@@ -280,6 +316,36 @@ void shift_diagonal(pos posArray[], int numElements, int numShifts, uint8_t dir)
   }
 }
 
+void preset_FFT(uint8_t constraint_max)
+{
+  //This is to make the FFT algorithm more publically available across all functions
+  //This was taken from the Equalizer setup and replaced the 0-7 constraint with a 0-> imported Constraint Max
+  
+  for (int i=0; i< SAMPLES; i++)                        //Take 128 samples --> The more samples, the more accurate, but the more slow it becomes
+  {                                                     //
+    audio_val = analogRead(MIC_PIN);                    //Get audio from the Microphone
+    data[i] = audio_val;                                //Each element of the data sample is sound data from the microphone
+    im[i] = 0;                                          //Set each imaginary number in the imaginary data set to 0
+  }
+  
+  fix_fft(data, im, 7, 0);                              //Perform the FFT on data using the fix_FFT library
+  
+  for(int i=0; i<(SAMPLES/2); i++)
+  {
+    data[i] = sqrt(data[i] * data[i] + im[i] * im[i]);  //Make the values positive -- Filter out noise and hum
+  }
+
+  for(int i = 0; i< 8 ; i++)                            //Average the numbers so they fit within 8 bins (64 data points, 8 bins -> 64/8=8)
+  {                                                     
+    data_avgs[i] = data[(i*4)] + data[(i*4 + 1)] + data[(i*4 + 2)] + data[(i*4 +3)];
+    if(i == 0)
+    {
+      data_avgs[i] /= 2;                                                     
+    }
+    data_avgs[i] = map(data_avgs[i], 0, 30, 0, 7);      //Maps the averages to a value from 0-7 that we can display on the LED Matrix - Max expected ouput val of 20
+    data_avgs[i] = constrain(data_avgs[i], 0, constraint_max);       //Force the avgs to fall within 0-constraint_max so they may be displayed accurately
+  }
+}
 /* ----------------------------------------------------------- */
 /* ------------------ ANIMATION FUNCTIONS -------------------- */
 /* ----------------------------------------------------------- */
@@ -353,7 +419,7 @@ void anim_randPixel()
       }
 }
 
-void anim_wave()
+void anim_wave1()
 {
    // -- Animation Models -- //
    pos wave[8] = {{2,0}, {3,1}, {4,2}, {5,3}, {5,4}, {4,5}, {3,6}, {2,7}};        //Basically a sine wave shape
@@ -395,6 +461,133 @@ void anim_wave()
    {                                                                              //The colour value for HUE or RGB can only be 0-255
       global_colour = 0;
    }
+}
+
+void anim_wave2()
+{
+  EVERY_N_MILLIS(35)
+  {
+    LEDS.clear();                                                   //Clear previous LEDS
+
+    audio_val = analogRead(MIC_PIN);
+    switch(audio_val)                                               //Determine Audio Level which will help determine the size of the SINE wave
+    {
+      case 0 ... 290:
+        wave_audio_level = 0;
+        break;
+      case 291 ... 315:
+        wave_audio_level = 1;
+        break;
+      case 316 ... 440:
+        wave_audio_level = 2;
+        break;
+      case 441 ... 1024:
+        wave_audio_level = 3;
+        break;
+    }
+    
+    for(uint8_t i = 0; i < 7 ; i++)
+    {                                                               //Shift All the (X,Y) values in the WAVE model to the left removing the value at i=0
+      wave2[i].x = wave2[i+1].x;                                      //This will help keep the wave animation in motion                                                                
+    } 
+    
+    if(wave_dir == 1)                                               // --- UPWARDS MOVEMENT --- //
+    {
+      if(amplitude == 3 || (wave_audio_level <= amplitude && amplitude !=0)) //If the amplitude is 3 (The max possible) or if the audio level isn't loud enough to permit creating a bigger wave
+      {                                                             //then it's time to start heading downwards.
+        wave_dir = 2;                                               //1. Change the wave direction to head DOWNWARDS
+        wave2[7].x += 1;                                             //2. Shift the foremost pixel down
+        wave_height = amplitude;                                    //3. Set the height of the wave to the current amplitude --> To know how far down to go to create an even SINE WAVE
+        amplitude--;                                           //4. Decrement the current amplitude
+      }
+      else if(wave_audio_level > amplitude)                                //The Audio level is sufficient enough to keep going up.
+      {
+        wave2[7].x -=1;                                              //1. Shift the foremost pixel up
+        amplitude++;                                           //2. Increment the current amplitude
+      }
+    }
+    else                                                            // --- DOWNWARDS MOVEMENT --- //
+    {
+      if(amplitude == -3 || amplitude == (wave_height*-1))          //If the amplitude is either at MAX or the height of the wave (determined by upwards movement)
+      {                                                             //then it's time to head back up.
+        wave_dir = 1;                                               //1. Change the wave direction to head UPWARDS 
+        wave2[7].x -=1;                                              //2. Shift the foremost pixel up
+        amplitude++;                                           //3. Increment the current amplitude
+      }
+      else                                                          //The height of the wave hasn't been reached yet and we can keep going down
+      {
+        wave2[7].x +=1;                                              //1. Shift the foremost pixel down
+        amplitude--;                                           //2. Decrement the current amplitude
+      }
+    }
+
+    leds_from_struct(wave2, 8, global_colour, 255, 127);            //Light the LEDS based on the positions from the WAVE model
+    LEDS.show();                                                    //Show the LEDS
+    global_colour += 5;                                             //Increment the global colour to create a rainbow effect
+    if(global_colour > 255)                                         //If this number is greater than 255, then reset back to 0
+    {                                                               //The colour value for HUE or RGB can only be 0-255
+      global_colour = 0;
+    }
+  }
+}
+void anim_spike()
+{
+  EVERY_N_MILLIS(20)                                                //Every 20 milliseconds repeat the code block
+  {                                   
+    for(uint8_t i=0; i<8; i++)                                      //Set the baseline across X=4)
+    {                                                               //Set it to the global colour with half saturation and brightness
+      leds[XY(4, i)] = CHSV(global_colour, 200, 127);                
+    }
+                                                                    //***SHIFT PREVIOUS VALUES LEFT AND RIGHT TOWARDS OUTSIDE EDGE***//
+                                                                    //-------------------------------------------------------------//
+    for( int x=1; x< 8; x++)                                        //All the LEDS will be checked between x=1 and x=7 (3 above/below x=4)
+    {
+      if(x!=4)                                                      //X=4 is our baseline, so these LEDS don't change
+      {
+                                                                    //1. SHIFTING RIGHT (y > 4) //                               
+        for( int y=7; y > 4; y--)                                     //Note: We have to check from right to left
+        {                                                             //We check if the led to the left is lit, if it is, the current led is lit and the other turned off
+          if(y==7 && leds[XY(x, y)])                                  //Before we shift, we check that the rightmost LED is on or not, then we turn it off before moving the rest
+          {                                                           //This is essentially the same as moving it right off the edge of the matrix.
+            leds[XY(x, y)] = CRGB(0,0,0); 
+          }
+          else if(leds[XY(x, (y-1))])
+          {    
+            leds[XY(x, y-1)] = CRGB(0,0,0);                           //**Shifting essentially involves turning off the previous LED location and turning on the current LED
+            leds[XY(x, y)] = CHSV(global_colour, 200, 127);           //Set to Global Colour, 50% saturation, 50% brightness
+          }
+        }
+  
+                                                                    //2. SHIFTING LEFT (Y < 3) //
+        for( int y=0; y <3; y++)                                      //Note: We have to check from left to right
+        {                                                             //We check if the led to the right is lit, if it is, the current led is lit and the other turned off
+          if(y==0 && leds[XY(x, y)])                                  //Before we shift, we check that the leftmost LED is on or not, then we turn it off before moving the rest
+          {                                                           //This is essentially the same as moving it left off the edge of the matrix
+            leds[XY(x, y)] = CRGB(0,0,0); 
+          }
+          else if(leds[XY(x, (y+1))])
+          {
+            leds[XY(x, (y+1))] = CRGB(0,0,0);                         //**Shifting essentially involves turning off the previous LED location and turning on the current LED
+            leds[XY(x, y)] = CHSV(global_colour, 200, 127);           //Set to Global colour, 50% saturation, 50% brightness
+          }
+        }
+      }
+    }
+                                                                    //*** CALCULATE NEW VALUES ***//
+    preset_FFT(6);                                                  //3. Perform the FFT with a constraint max of 4. (This means the values we will get back are in the range of 0-4
+    
+    for(uint8_t i=0; i< (data_avgs[2] -3); i++)                     //4. For the value given in one of the bands output by FastFFT with our constraint of 4
+    {                                                               //   set the LEDs above and below X=4 for Y=3 and Y=4 (the middle two LED Columns)
+      leds[XY(4+(i+1), 3)] = CHSV(global_colour, 200, 127);         //   e.g. This value is 2, we subtract the bottom 25% values (minus 1 from 4) so it's between 1-3
+      leds[XY(4-(i+1), 3)] = CHSV(global_colour, 200, 127);         //        and we make the output a little less sensitive. Then we light X=5,6 and X= 2,3 which
+                                                                    //        are the 2 points above and below X=4. On the next iteration, these points will be shifted
+      leds[XY(4+(i+1), 4)] = CHSV(global_colour, 200, 127);         //        left and right respectively. ( <-- Y=3 | Y=4 --> )
+      leds[XY(4-(i+1), 4)] = CHSV(global_colour, 200, 127);
+    }
+  
+    LEDS.show();                                                    //5. After all the LEDS are set, display them.
+    incrementGlobalColour();                                        //6. Increment the global colour so the colour transitions on the next iteration
+  }
 }
 
 void anim_rain()
