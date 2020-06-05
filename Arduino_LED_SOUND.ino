@@ -43,6 +43,11 @@ int wave_height = 0;                          //The max height calculated from t
 int amplitude = 0;                            //The current amplitude (from X=5) of the foremost pixel [Y=7] --> The last pixel in the WAVE model ^
 uint8_t wave_audio_level = 0;                 //A value of 0-3 determining whether or not the foremost pixel should move further up based on volume.  
 
+//-- Genesis Animation variables --//
+bool construct = true;
+uint8_t num_constructed = 0;
+uint8_t num_attempts = 0;
+
 //-- Global Pong Game variables --//
 pos paddle[3] = {{7,0}, {6,0}, {5,0}};        //The position struct containing the starting X and Y points for the paddle
 pos ball[1] = {{6,3}};                        //The position struct containing the starting X and Y points for the ball 
@@ -61,6 +66,9 @@ void setup() {
   Serial.begin(9600);                                                   //Serial Output Setup (For debugging)
 
   //anim_start();                                                         //Introductory Animation --> See anim_start() in Animation function area
+  /*do{
+    anim_genesis();
+  }while(1); */
 }
 
 void loop() {
@@ -110,13 +118,16 @@ void loop() {
       anim_rotatingBox();                   //8. An animation test showing a dot moving around a box
       break;
     case 9 :
-      anim_fireworks();                     //9. Randomly generated fireworks on a night sky backdrop (NOT SOUND BASED)
+      anim_genesis();                       //9. An animation where LEDS are randomly lit with a random brightness then slowly faded out to black then repeated
       break;
     case 10 :
-      anim_cycle();                         //10. An animation of a Sun/Moon cycle (Sun up/down, then Moon up/down)
+      anim_fireworks();                     //10. Randomly generated fireworks on a night sky backdrop (NOT SOUND BASED)
       break;
     case 11 :
-      game_pong();                          //11. A simple game of pong where the paddle moves based 
+      anim_cycle();                         //11. An animation of a Sun/Moon cycle (Sun up/down, then Moon up/down)
+      break;
+    case 12 :
+      game_pong();                          //12. A simple game of pong where the paddle moves based 
       break;
   }
 
@@ -465,27 +476,13 @@ void anim_wave1()
 
 void anim_wave2()
 {
-  EVERY_N_MILLIS(35)
+  EVERY_N_MILLIS(30)
   {
     LEDS.clear();                                                   //Clear previous LEDS
 
-    audio_val = analogRead(MIC_PIN);
-    switch(audio_val)                                               //Determine Audio Level which will help determine the size of the SINE wave
-    {
-      case 0 ... 290:
-        wave_audio_level = 0;
-        break;
-      case 291 ... 315:
-        wave_audio_level = 1;
-        break;
-      case 316 ... 440:
-        wave_audio_level = 2;
-        break;
-      case 441 ... 1024:
-        wave_audio_level = 3;
-        break;
-    }
-    
+    preset_FFT(6);                                                   //Calculate the Fast Fourier Transform and constrain the output values to be between 0-4
+    wave_audio_level = (data_avgs[2] - 1);                          //Set the wave_audio level to the values from one of the audio bins and reduce sensitivity
+                                                                    //by reducing the value by 1 (effectively cutting the bottom 25% of the response)
     for(uint8_t i = 0; i < 7 ; i++)
     {                                                               //Shift All the (X,Y) values in the WAVE model to the left removing the value at i=0
       wave2[i].x = wave2[i+1].x;                                      //This will help keep the wave animation in motion                                                                
@@ -494,42 +491,118 @@ void anim_wave2()
     if(wave_dir == 1)                                               // --- UPWARDS MOVEMENT --- //
     {
       if(amplitude == 3 || (wave_audio_level <= amplitude && amplitude !=0)) //If the amplitude is 3 (The max possible) or if the audio level isn't loud enough to permit creating a bigger wave
-      {                                                             //then it's time to start heading downwards.
-        wave_dir = 2;                                               //1. Change the wave direction to head DOWNWARDS
-        wave2[7].x += 1;                                             //2. Shift the foremost pixel down
-        wave_height = amplitude;                                    //3. Set the height of the wave to the current amplitude --> To know how far down to go to create an even SINE WAVE
-        amplitude--;                                           //4. Decrement the current amplitude
+      {                                                                      //then it's time to start heading downwards.
+        wave_dir = 2;                                                           //1. Change the wave direction to head DOWNWARDS
+        wave2[7].x += 1;                                                        //2. Shift the foremost pixel down
+        wave_height = amplitude;                                                //3. Set the height of the wave to the current amplitude --> To know how far down to go to create an even SINE WAVE
+        amplitude--;                                                            //4. Decrement the current amplitude
       }
-      else if(wave_audio_level > amplitude)                                //The Audio level is sufficient enough to keep going up.
+      else if(wave_audio_level > amplitude)                                 //If the Audio level is sufficient enough to keep going up...
       {
-        wave2[7].x -=1;                                              //1. Shift the foremost pixel up
-        amplitude++;                                           //2. Increment the current amplitude
+        wave2[7].x -=1;                                                         //1. Shift the foremost pixel up
+        amplitude++;                                                            //2. Increment the current amplitude
       }
     }
     else                                                            // --- DOWNWARDS MOVEMENT --- //
     {
-      if(amplitude == -3 || amplitude == (wave_height*-1))          //If the amplitude is either at MAX or the height of the wave (determined by upwards movement)
-      {                                                             //then it's time to head back up.
-        wave_dir = 1;                                               //1. Change the wave direction to head UPWARDS 
-        wave2[7].x -=1;                                              //2. Shift the foremost pixel up
-        amplitude++;                                           //3. Increment the current amplitude
+      if(amplitude == -3 || amplitude == (wave_height*-1))                  //If the amplitude is either at MAX or the height of the wave (determined by upwards movement)
+      {                                                                     //then it's time to head back up.
+        wave_dir = 1;                                                           //1. Change the wave direction to head UPWARDS 
+        wave2[7].x -=1;                                                         //2. Shift the foremost pixel up
+        amplitude++;                                                            //3. Increment the current amplitude
       }
-      else                                                          //The height of the wave hasn't been reached yet and we can keep going down
+      else                                                                 //If the height of the wave hasn't been reached yet and we can keep going down
       {
-        wave2[7].x +=1;                                              //1. Shift the foremost pixel down
-        amplitude--;                                           //2. Decrement the current amplitude
+        wave2[7].x +=1;                                                         //1. Shift the foremost pixel down
+        amplitude--;                                                            //2. Decrement the current amplitude
       }
     }
 
     leds_from_struct(wave2, 8, global_colour, 255, 127);            //Light the LEDS based on the positions from the WAVE model
     LEDS.show();                                                    //Show the LEDS
-    global_colour += 5;                                             //Increment the global colour to create a rainbow effect
-    if(global_colour > 255)                                         //If this number is greater than 255, then reset back to 0
-    {                                                               //The colour value for HUE or RGB can only be 0-255
-      global_colour = 0;
-    }
+    incrementGlobalColour();                                             //Increment the global colour to create a rainbow effect
   }
 }
+
+void anim_genesis()
+{
+                    //1. Fill spaces until full
+ EVERY_N_MILLIS(2)
+ {
+    if(construct == true)                                       //ALL 64 pixels are OFF/unlit, so it's time to construct                                     
+    {
+       bool found = false;                                      //This is our exit condition for the while loop
+       while(found == false)
+       {
+         uint16_t randX = (rand() % ((7-0+1)));                     //Pick a random X and Y to light up with a randomly chosen brightness
+         uint16_t randY = (rand() % ((7-0+1)));
+         uint16_t randBrt = (rand() % ((200 - 100 + 1) + 100));     //The randomly chosen brightness
+
+         if(!leds[XY(randX, randY)])                                //If the LED is off for the random X,Y then set the LED with the global colour and random Brightness
+         {
+            leds[XY(randX, randY)] = CHSV(global_colour, 255, randBrt);
+            found = true;                                           //Make sure we exit the loop as necessary
+            num_constructed +=1;                                    //and Increase our constructed pixel counter to keep track
+            Serial.println(num_constructed, DEC);
+         }
+
+         if(num_constructed == 64)                                  //Once the constructed pixel counter reaches 64, we have filled the board
+         {                                                          //So set the mode to deconstruct
+            construct = false;
+         }
+       }
+       
+    }
+
+    else if(construct == false)                                 //ALL 64 pixels are constructed, so it's time to DECONSTRUCT
+    {
+      bool found = false;                                       //This is our exit condition for the while loop
+      while(found == false)
+      {
+        if(num_constructed == 1)                                //If Dealing with the final point --> Don't rely on random selection
+        {
+          for(uint8_t i=0; i<64; i++)
+          {
+            if(leds[i])                                         //Find the final point
+            {
+              while(leds[i])                                      //While the final point is lit...
+              {                                                   //Fade the final point until it's black CRGB(0,0,0) 
+                leds[i].fadeToBlackBy(32);                        //At which point leds[i] would be false. 
+                LEDS.show();
+              }
+                                                                //After the final point is black
+              num_constructed = 0;                                //Reset constructed pixels counter
+              construct = true;                                   //Tell the program to start constructing again
+              found = true;                                       //Set our exit condition for the while loop
+              global_colour = setRandColor();                     //Set a random colour for the next genesis cycle
+            }
+          }
+        }
+        else                                                    //If NOT dealing with the final point --> Rely on random selection
+        {
+          uint16_t randX = (rand() % ((7-0+1)));                //Pick a random X
+          uint16_t randY = (rand() % ((7-0+1)));                //Pick a random Y
+        
+          if(leds[XY(randX, randY)])                            //If the LED is on for the picked random co-ordinate, fade that LED by 12.5% (32/256)
+          {
+            leds[XY(randX, randY)].fadeToBlackBy(32);             //Fade the LED's brightness by 32/256 (12.5%)
+            found = true;                                         //Set our exit condition for the while loop
+ 
+            if(!leds[XY(randX, randY)])                         //If the LED is now OFF (black / crgb(0,0,0) ), reduce our constructed counter by 1
+            {
+              num_constructed -=1;                                //Reduce the constructed counter
+              Serial.println(num_constructed, DEC);               //Debugging: Keep track of the number of constructed pixels
+            }
+          }
+        }
+        
+      }
+    }
+
+    LEDS.show();
+ }
+}
+
 void anim_spike()
 {
   EVERY_N_MILLIS(20)                                                //Every 20 milliseconds repeat the code block
@@ -574,9 +647,9 @@ void anim_spike()
       }
     }
                                                                     //*** CALCULATE NEW VALUES ***//
-    preset_FFT(6);                                                  //3. Perform the FFT with a constraint max of 4. (This means the values we will get back are in the range of 0-4
+    preset_FFT(4);                                                  //3. Perform the FFT with a constraint max of 4. (This means the values we will get back are in the range of 0-4
     
-    for(uint8_t i=0; i< (data_avgs[2] -3); i++)                     //4. For the value given in one of the bands output by FastFFT with our constraint of 4
+    for(uint8_t i=0; i< (data_avgs[2]-1); i++)                     //4. For the value given in one of the bands output by FastFFT with our constraint of 4
     {                                                               //   set the LEDs above and below X=4 for Y=3 and Y=4 (the middle two LED Columns)
       leds[XY(4+(i+1), 3)] = CHSV(global_colour, 200, 127);         //   e.g. This value is 2, we subtract the bottom 25% values (minus 1 from 4) so it's between 1-3
       leds[XY(4-(i+1), 3)] = CHSV(global_colour, 200, 127);         //        and we make the output a little less sensitive. Then we light X=5,6 and X= 2,3 which
@@ -1041,19 +1114,40 @@ void game_pong()
 
   if(game_over == true)                                                           //If the game has ended and the function has been called again
   {                                                                               //Reset the global variables that the game uses
-    anim_start();
+    //anim_start();
     ball[0].x = (rand() % (6-1 +1) + 1);
-    ball[0].y = (rand() % (5-2 +1) + 2);
+    ball[0].y = (rand() % (5-4 +1) + 4);
     ball_direction = (rand() % (4-1 +1) + 1);
     game_over = false;
   }
   while(digitalRead(BUTTON_PIN) != HIGH && game_over == false)                    //As the loop stays within the function, set an exit condition
   {
-    EVERY_N_MILLIS(5)                                                             //Every 5 milliseconds        
+    EVERY_N_MILLIS(40)                                                            //Every 40 milliseconds (The slower this is, the slower it refreshes)       
     {                                                                             //Grab the audio value & Shift the paddle according to the value
-      audio_val = analogRead(MIC_PIN);
+      if(digitalRead(BUTTON_PIN) == HIGH && buttonPrevious == LOW)                // Added the menu change logic within the function as the button press
+      {                                                                           // Logic isn't detected within the function otherwise 
+        //Detect button press --> exit game
+        programMode++;                                                                //Change the mode
+        state = 0;                                                                    //Reset Animation state for next function
+        global_colour = 0;                                                            //Reset Global Colour variable for animations
+        LEDS.clear();                                                                 //Clear the LEDS from the previous mode
+        
+        if(programMode > 11)                                                          //If the program mode clicks past 7, reset back to the first 
+        {
+          programMode= 1;
+        }
+        buttonPrevious = buttonCurrent;                                               //This is to prevent re-entering the IF statement on long press of the button
+      } 
       
-      if(audio_val > 310 && audio_val < 330)                                      //If the audio value is between 311 and 329, move the paddle down
+      
+      preset_FFT(6);                                                              //In order to determine the audio, we call the FFT algorithm with a constraint of (0-6)                                           
+      int8_t move_val = data_avgs[2] - 3;                                         //We collect the result from one particular band, in this case, the 3rd one, and remove
+      if (move_val < 0)                                                           //the bottom 50% of values to remove noise and sensitivity.
+      {                                                                           //If the move value collected is below 0 after removing 3 , then set it to 0.
+        move_val = 0;
+      }
+      
+      if(move_val == 1 || move_val == 0)                                          //If the move value is either 1 or 0, move the paddle down
       {                                                                           //As long as the paddle is not resting on the BOTTOM of X          
                                                                                   
         if(in_list((pos){7,0}, paddle, 3) == false)                               //Check if (7,0) [the bottom] doesn't exist in the paddles position variables
@@ -1061,7 +1155,7 @@ void game_pong()
           shift_down(paddle, 3, 1);                                               //If it isn't, then it's not at the bottom, so shift down 1 space
         }
       }
-      else if(audio_val > 350)                                                    //If the audio value is greater than 350, shift the paddle up
+      else if(move_val == 3 || move_val == 2)                                     //If the move value is 2 or 3, shift the paddle up
       {                                                                           //As long as the paddle isn't sitting at the TOP of X 
         //Check to see if it's not resting on the TOP of X
         if(in_list((pos){0,0}, paddle, 3) == false)                               //Check if (0,0) doesn't exist in the paddles position variables
